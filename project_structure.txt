@@ -1,0 +1,816 @@
+Folder PATH listing for volume New Volume
+Volume serial number is 5AB5-9F66
+D:.
+|   calidi.py
+|   convert.py
+|   Fashion Dataset.csv
+|   Fashion_Dataset_Cleaned.csv
+|   load_to_mongo.py
+|   package-lock.json
+|   project_structure.txt
+|   requirements.txt
+|   
++---.vscode
+|       settings.json
+|       
++---backend
+|   |   .env
+|   |   .env.example
+|   |   API_DOCS.md
+|   |   package-lock.json
+|   |   package.json
+|   |   server.js
+|   |   
+|   +---config
+|   |       db.js
+|   |       
+|   +---controllers
+|   |       authController.js
+|   |       
+|   +---middleware
+|   |       auth.js
+|   |       
+|   +---models
+|   |       User.js
+|   |       
+|   +---node_modules
+|   |   |   .package-lock.json
+|   |   |   
+|   |   +---asynckit
+|   |   |   |   bench.js
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   parallel.js
+|   |   |   |   README.md
+|   |   |   |   serial.js
+|   |   |   |   serialOrdered.js
+|   |   |   |   stream.js
+|   |   |   |   
+|   |   |   \---lib
+|   |   |           abort.js
+|   |   |           async.js
+|   |   |           defer.js
+|   |   |           iterate.js
+|   |   |           readable_asynckit.js
+|   |   |           readable_parallel.js
+|   |   |           readable_serial.js
+|   |   |           readable_serial_ordered.js
+|   |   |           state.js
+|   |   |           streamify.js
+|   |   |           terminator.js
+|   |   |           
+|   |   +---axios
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.cts
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   MIGRATION_GUIDE.md
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   
+|   |   |   +---dist
+|   |   |   |   |   axios.js
+|   |   |   |   |   axios.js.map
+|   |   |   |   |   axios.min.js
+|   |   |   |   |   axios.min.js.map
+|   |   |   |   |   
+|   |   |   |   +---browser
+|   |   |   |   |       axios.cjs
+|   |   |   |   |       axios.cjs.map
+|   |   |   |   |       
+|   |   |   |   +---esm
+|   |   |   |   |       axios.js
+|   |   |   |   |       axios.js.map
+|   |   |   |   |       axios.min.js
+|   |   |   |   |       axios.min.js.map
+|   |   |   |   |       
+|   |   |   |   \---node
+|   |   |   |           axios.cjs
+|   |   |   |           axios.cjs.map
+|   |   |   |           
+|   |   |   \---lib
+|   |   |       |   axios.js
+|   |   |       |   utils.js
+|   |   |       |   
+|   |   |       +---adapters
+|   |   |       |       adapters.js
+|   |   |       |       fetch.js
+|   |   |       |       http.js
+|   |   |       |       README.md
+|   |   |       |       xhr.js
+|   |   |       |       
+|   |   |       +---cancel
+|   |   |       |       CanceledError.js
+|   |   |       |       CancelToken.js
+|   |   |       |       isCancel.js
+|   |   |       |       
+|   |   |       +---core
+|   |   |       |       Axios.js
+|   |   |       |       AxiosError.js
+|   |   |       |       AxiosHeaders.js
+|   |   |       |       buildFullPath.js
+|   |   |       |       dispatchRequest.js
+|   |   |       |       InterceptorManager.js
+|   |   |       |       mergeConfig.js
+|   |   |       |       README.md
+|   |   |       |       settle.js
+|   |   |       |       transformData.js
+|   |   |       |       
+|   |   |       +---defaults
+|   |   |       |       index.js
+|   |   |       |       transitional.js
+|   |   |       |       
+|   |   |       +---env
+|   |   |       |   |   data.js
+|   |   |       |   |   README.md
+|   |   |       |   |   
+|   |   |       |   \---classes
+|   |   |       |           FormData.js
+|   |   |       |           
+|   |   |       +---helpers
+|   |   |       |       AxiosTransformStream.js
+|   |   |       |       AxiosURLSearchParams.js
+|   |   |       |       bind.js
+|   |   |       |       buildURL.js
+|   |   |       |       callbackify.js
+|   |   |       |       combineURLs.js
+|   |   |       |       composeSignals.js
+|   |   |       |       cookies.js
+|   |   |       |       deprecatedMethod.js
+|   |   |       |       estimateDataURLDecodedBytes.js
+|   |   |       |       formDataToJSON.js
+|   |   |       |       formDataToStream.js
+|   |   |       |       fromDataURI.js
+|   |   |       |       HttpStatusCode.js
+|   |   |       |       isAbsoluteURL.js
+|   |   |       |       isAxiosError.js
+|   |   |       |       isURLSameOrigin.js
+|   |   |       |       null.js
+|   |   |       |       parseHeaders.js
+|   |   |       |       parseProtocol.js
+|   |   |       |       progressEventReducer.js
+|   |   |       |       readBlob.js
+|   |   |       |       README.md
+|   |   |       |       resolveConfig.js
+|   |   |       |       speedometer.js
+|   |   |       |       spread.js
+|   |   |       |       throttle.js
+|   |   |       |       toFormData.js
+|   |   |       |       toURLEncodedForm.js
+|   |   |       |       trackStream.js
+|   |   |       |       validator.js
+|   |   |       |       ZlibHeaderTransformStream.js
+|   |   |       |       
+|   |   |       \---platform
+|   |   |           |   index.js
+|   |   |           |   
+|   |   |           +---browser
+|   |   |           |   |   index.js
+|   |   |           |   |   
+|   |   |           |   \---classes
+|   |   |           |           Blob.js
+|   |   |           |           FormData.js
+|   |   |           |           URLSearchParams.js
+|   |   |           |           
+|   |   |           +---common
+|   |   |           |       utils.js
+|   |   |           |       
+|   |   |           \---node
+|   |   |               |   index.js
+|   |   |               |   
+|   |   |               \---classes
+|   |   |                       FormData.js
+|   |   |                       URLSearchParams.js
+|   |   |                       
+|   |   +---call-bind-apply-helpers
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   actualApply.d.ts
+|   |   |   |   actualApply.js
+|   |   |   |   applyBind.d.ts
+|   |   |   |   applyBind.js
+|   |   |   |   CHANGELOG.md
+|   |   |   |   functionApply.d.ts
+|   |   |   |   functionApply.js
+|   |   |   |   functionCall.d.ts
+|   |   |   |   functionCall.js
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   reflectApply.d.ts
+|   |   |   |   reflectApply.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---combined-stream
+|   |   |   |   License
+|   |   |   |   package.json
+|   |   |   |   Readme.md
+|   |   |   |   yarn.lock
+|   |   |   |   
+|   |   |   \---lib
+|   |   |           combined_stream.js
+|   |   |           
+|   |   +---delayed-stream
+|   |   |   |   .npmignore
+|   |   |   |   License
+|   |   |   |   Makefile
+|   |   |   |   package.json
+|   |   |   |   Readme.md
+|   |   |   |   
+|   |   |   \---lib
+|   |   |           delayed_stream.js
+|   |   |           
+|   |   +---dunder-proto
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   get.d.ts
+|   |   |   |   get.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   set.d.ts
+|   |   |   |   set.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           get.js
+|   |   |           index.js
+|   |   |           set.js
+|   |   |           
+|   |   +---es-define-property
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---es-errors
+|   |   |   |   .eslintrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   eval.d.ts
+|   |   |   |   eval.js
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   range.d.ts
+|   |   |   |   range.js
+|   |   |   |   README.md
+|   |   |   |   ref.d.ts
+|   |   |   |   ref.js
+|   |   |   |   syntax.d.ts
+|   |   |   |   syntax.js
+|   |   |   |   tsconfig.json
+|   |   |   |   type.d.ts
+|   |   |   |   type.js
+|   |   |   |   uri.d.ts
+|   |   |   |   uri.js
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---es-object-atoms
+|   |   |   |   .eslintrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   isObject.d.ts
+|   |   |   |   isObject.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   RequireObjectCoercible.d.ts
+|   |   |   |   RequireObjectCoercible.js
+|   |   |   |   ToObject.d.ts
+|   |   |   |   ToObject.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---es-set-tostringtag
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---follow-redirects
+|   |   |       debug.js
+|   |   |       http.js
+|   |   |       https.js
+|   |   |       index.js
+|   |   |       LICENSE
+|   |   |       package.json
+|   |   |       README.md
+|   |   |       
+|   |   +---form-data
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   License
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   
+|   |   |   \---lib
+|   |   |           browser.js
+|   |   |           form_data.js
+|   |   |           populate.js
+|   |   |           
+|   |   +---function-bind
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   implementation.js
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       SECURITY.md
+|   |   |   |       
+|   |   |   \---test
+|   |   |           .eslintrc
+|   |   |           index.js
+|   |   |           
+|   |   +---get-intrinsic
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           GetIntrinsic.js
+|   |   |           
+|   |   +---get-proto
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   Object.getPrototypeOf.d.ts
+|   |   |   |   Object.getPrototypeOf.js
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   Reflect.getPrototypeOf.d.ts
+|   |   |   |   Reflect.getPrototypeOf.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---gopd
+|   |   |   |   .eslintrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   gOPD.d.ts
+|   |   |   |   gOPD.js
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---has-symbols
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   shams.d.ts
+|   |   |   |   shams.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |       |   index.js
+|   |   |       |   tests.js
+|   |   |       |   
+|   |   |       \---shams
+|   |   |               core-js.js
+|   |   |               get-own-property-symbols.js
+|   |   |               
+|   |   +---has-tostringtag
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   shams.d.ts
+|   |   |   |   shams.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   \---test
+|   |   |       |   index.js
+|   |   |       |   tests.js
+|   |   |       |   
+|   |   |       \---shams
+|   |   |               core-js.js
+|   |   |               get-own-property-symbols.js
+|   |   |               
+|   |   +---hasown
+|   |   |   |   .eslintrc
+|   |   |   |   .nycrc
+|   |   |   |   CHANGELOG.md
+|   |   |   |   index.d.ts
+|   |   |   |   index.js
+|   |   |   |   LICENSE
+|   |   |   |   package.json
+|   |   |   |   README.md
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   \---.github
+|   |   |           FUNDING.yml
+|   |   |           
+|   |   +---math-intrinsics
+|   |   |   |   .eslintrc
+|   |   |   |   abs.d.ts
+|   |   |   |   abs.js
+|   |   |   |   CHANGELOG.md
+|   |   |   |   floor.d.ts
+|   |   |   |   floor.js
+|   |   |   |   isFinite.d.ts
+|   |   |   |   isFinite.js
+|   |   |   |   isInteger.d.ts
+|   |   |   |   isInteger.js
+|   |   |   |   isNaN.d.ts
+|   |   |   |   isNaN.js
+|   |   |   |   isNegativeZero.d.ts
+|   |   |   |   isNegativeZero.js
+|   |   |   |   LICENSE
+|   |   |   |   max.d.ts
+|   |   |   |   max.js
+|   |   |   |   min.d.ts
+|   |   |   |   min.js
+|   |   |   |   mod.d.ts
+|   |   |   |   mod.js
+|   |   |   |   package.json
+|   |   |   |   pow.d.ts
+|   |   |   |   pow.js
+|   |   |   |   README.md
+|   |   |   |   round.d.ts
+|   |   |   |   round.js
+|   |   |   |   sign.d.ts
+|   |   |   |   sign.js
+|   |   |   |   tsconfig.json
+|   |   |   |   
+|   |   |   +---.github
+|   |   |   |       FUNDING.yml
+|   |   |   |       
+|   |   |   +---constants
+|   |   |   |       maxArrayLength.d.ts
+|   |   |   |       maxArrayLength.js
+|   |   |   |       maxSafeInteger.d.ts
+|   |   |   |       maxSafeInteger.js
+|   |   |   |       maxValue.d.ts
+|   |   |   |       maxValue.js
+|   |   |   |       
+|   |   |   \---test
+|   |   |           index.js
+|   |   |           
+|   |   +---mime-db
+|   |   |       db.json
+|   |   |       HISTORY.md
+|   |   |       index.js
+|   |   |       LICENSE
+|   |   |       package.json
+|   |   |       README.md
+|   |   |       
+|   |   +---mime-types
+|   |   |       HISTORY.md
+|   |   |       index.js
+|   |   |       LICENSE
+|   |   |       package.json
+|   |   |       README.md
+|   |   |       
+|   |   \---proxy-from-env
+|   |           .eslintrc
+|   |           .travis.yml
+|   |           index.js
+|   |           LICENSE
+|   |           package.json
+|   |           README.md
+|   |           test.js
+|   |           
+|   +---routes
+|   |       authRoutes.js
+|   |       checkoutRoutes.js
+|   |       recommendationRoutes.js
+|   |       
+|   \---utils
+|           email.js
+|           
++---frontend
+|   |   .gitignore
+|   |   bun.lock
+|   |   bun.lockb
+|   |   components.json
+|   |   eslint.config.js
+|   |   index.html
+|   |   package-lock.json
+|   |   package.json
+|   |   postcss.config.js
+|   |   README.md
+|   |   tailwind.config.ts
+|   |   tsconfig.app.json
+|   |   tsconfig.json
+|   |   tsconfig.node.json
+|   |   vite.config.ts
+|   |   vitest.config.ts
+|   |   
+|   +---public
+|   |       favicon.ico
+|   |       placeholder.svg
+|   |       robots.txt
+|   |       
+|   +---src
+|   |   |   App.css
+|   |   |   App.tsx
+|   |   |   index.css
+|   |   |   main.tsx
+|   |   |   vite-env.d.ts
+|   |   |   
+|   |   +---assets
+|   |   |       calidi-logo.png
+|   |   |       category-accessories.png
+|   |   |       category-men.png
+|   |   |       category-women.png
+|   |   |       hero-1.png
+|   |   |       product-1.png
+|   |   |       product-2.png
+|   |   |       product-3.png
+|   |   |       product-4.png
+|   |   |       product-5.png
+|   |   |       product-6.png
+|   |   |       product-7.png
+|   |   |       product-8.png
+|   |   |       
+|   |   +---components
+|   |   |   |   CartDrawer.tsx
+|   |   |   |   CategorySection.tsx
+|   |   |   |   FeaturedProducts.tsx
+|   |   |   |   Footer.tsx
+|   |   |   |   HeroSection.tsx
+|   |   |   |   Navbar.tsx
+|   |   |   |   NavLink.tsx
+|   |   |   |   ProductCard.tsx
+|   |   |   |   Recommendations.tsx
+|   |   |   |   
+|   |   |   \---ui
+|   |   |           accordion.tsx
+|   |   |           alert-dialog.tsx
+|   |   |           alert.tsx
+|   |   |           aspect-ratio.tsx
+|   |   |           avatar.tsx
+|   |   |           badge.tsx
+|   |   |           breadcrumb.tsx
+|   |   |           button.tsx
+|   |   |           calendar.tsx
+|   |   |           card.tsx
+|   |   |           carousel.tsx
+|   |   |           chart.tsx
+|   |   |           checkbox.tsx
+|   |   |           collapsible.tsx
+|   |   |           command.tsx
+|   |   |           context-menu.tsx
+|   |   |           dialog.tsx
+|   |   |           drawer.tsx
+|   |   |           dropdown-menu.tsx
+|   |   |           form.tsx
+|   |   |           hover-card.tsx
+|   |   |           input-otp.tsx
+|   |   |           input.tsx
+|   |   |           label.tsx
+|   |   |           menubar.tsx
+|   |   |           navigation-menu.tsx
+|   |   |           pagination.tsx
+|   |   |           popover.tsx
+|   |   |           progress.tsx
+|   |   |           radio-group.tsx
+|   |   |           resizable.tsx
+|   |   |           scroll-area.tsx
+|   |   |           select.tsx
+|   |   |           separator.tsx
+|   |   |           sheet.tsx
+|   |   |           sidebar.tsx
+|   |   |           skeleton.tsx
+|   |   |           slider.tsx
+|   |   |           sonner.tsx
+|   |   |           switch.tsx
+|   |   |           table.tsx
+|   |   |           tabs.tsx
+|   |   |           textarea.tsx
+|   |   |           toast.tsx
+|   |   |           toaster.tsx
+|   |   |           toggle-group.tsx
+|   |   |           toggle.tsx
+|   |   |           tooltip.tsx
+|   |   |           use-toast.ts
+|   |   |           
+|   |   +---context
+|   |   |       CartContext.tsx
+|   |   |       
+|   |   +---hooks
+|   |   |       use-mobile.tsx
+|   |   |       use-toast.ts
+|   |   |       useAuth.tsx
+|   |   |       
+|   |   +---integrations
+|   |   |   \---supabase
+|   |   |           client.ts
+|   |   |           types.ts
+|   |   |           
+|   |   +---lib
+|   |   |       api.ts
+|   |   |       products.ts
+|   |   |       types.ts
+|   |   |       utils.ts
+|   |   |       
+|   |   +---pages
+|   |   |       Auth.tsx
+|   |   |       Checkout.tsx
+|   |   |       Index.tsx
+|   |   |       NotFound.tsx
+|   |   |       PaymentCanceled.tsx
+|   |   |       PaymentSuccess.tsx
+|   |   |       ProductDetail.tsx
+|   |   |       ShippingReturns.tsx
+|   |   |       Shop.tsx
+|   |   |       SizeGuide.tsx
+|   |   |       VerifyEmail.tsx
+|   |   |       
+|   |   \---test
+|   |           example.test.ts
+|   |           setup.ts
+|   |           
+|   \---supabase
+|       |   config.toml
+|       |   
+|       \---functions
+|           \---create-checkout
+|                   index.ts
+|                   
++---Images
+|   \---Images
+|           0.jpg
+|           10.jpg
+|           100.jpg
+|           1000.jpg
+|           10000.jpg
+|           10001.jpg
+|           10002.jpg
+|           10003.jpg
+|           10004.jpg
+|           10005.jpg
+|           10006.jpg
+|           10007.jpg
+|           10008.jpg
+|           10009.jpg
+|           1001.jpg
+|           10010.jpg
+|           10011.jpg
+|           10012.jpg
+|           10013.jpg
+|           10014.jpg
+|           10015.jpg
+|           10016.jpg
+|           10017.jpg
+|           10018.jpg
+|           10019.jpg
+|           1002.jpg
+|           10020.jpg
+|           10021.jpg
+|           10022.jpg
+|           10023.jpg
+|           10024.jpg
+|           10025.jpg
+|           10026.jpg
+|           10027.jpg
+|           10028.jpg
+|           10029.jpg
+|           1003.jpg
+|           10030.jpg
+|           10031.jpg
+|           10032.jpg
+|           10033.jpg
+|           10034.jpg
+|           10035.jpg
+|           10036.jpg
+|           10037.jpg
+|           10038.jpg
+|           10039.jpg
+|           1004.jpg
+|           10040.jpg
+|           10041.jpg
+|           10042.jpg
+|           10043.jpg
+|           10044.jpg
+|           10045.jpg
+|           10046.jpg
+|           10047.jpg
+|           10048.jpg
+|           10049.jpg
+|           1005.jpg
+|           10050.jpg
+|           10051.jpg
+|           10052.jpg
+|           10053.jpg
+|           10054.jpg
+|           10055.jpg
+|           10056.jpg
+|           10057.jpg
+|           10058.jpg
+|           10059.jpg
+|           1006.jpg
+|           10060.jpg
+|           10061.jpg
+|           10062.jpg
+|           10063.jpg
+|           10064.jpg
+|              :
+|           9999.jpg
+|           
++---model
+|       hybrid_feature_matrix.npz
+|       
+\---recommendation_service
+    |   .env
+    |   app.py
+    |   package-lock.json
+    |   package.json
+    |   
+    +---node_modules
+    |   |   .package-lock.json
+    |   |   
+    |   \---uvicorn
+    |           package.json
+    |           README.md
+    |           
+    \---__pycache__
+            app.cpython-311.pyc
+            

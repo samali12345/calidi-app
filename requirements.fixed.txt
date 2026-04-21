@@ -1,0 +1,11 @@
+pymongo
+gridfs
+pandas
+Pillow
+python-dotenv
+fastapi
+uvicorn
+scipy
+scikit-learn
+torch
+torchvision
