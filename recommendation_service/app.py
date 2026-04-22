@@ -228,6 +228,181 @@ def call_external_style_api(source_doc: Dict[str, Any], top_n: int, source_group
     return parse_style_slots(parsed, source_group)
 
 
+def normalize_outfit_slot(product_doc: Dict[str, Any]) -> str:
+    slot = normalize_text_value(product_doc.get("outfitSlot", ""))
+    if slot in {"top", "bottom", "dress", "accessory", "outerwear"}:
+        return slot
+    inferred = infer_outfit_group(product_doc)
+    mapping = {
+        "top": "top",
+        "bottom": "bottom",
+        "dress": "dress",
+        "outerwear": "outerwear",
+        "footwear": "accessory",
+        "accessories": "accessory",
+        "ethnic set": "dress",
+        "other": "top",
+    }
+    return mapping.get(inferred.lower(), "top")
+
+
+def get_outfit_slots(outfit_slot: str, category: str, name: str = "") -> List[str]:
+    slot = normalize_text_value(outfit_slot)
+    category_l = normalize_text_value(category)
+    name_l = normalize_text_value(name)
+
+    if slot == "top":
+        if "ethnic" in category_l or "kurta" in name_l:
+            return ["bottom", "accessory"]
+        return ["bottom", "accessory"]
+    if slot == "bottom":
+        return ["top", "accessory"]
+    if slot == "dress":
+        return ["accessory", "outerwear"]
+    if slot == "outerwear":
+        return ["top", "bottom"]
+    if slot == "accessory":
+        return ["top", "bottom"]
+    return ["bottom", "accessory"]
+
+
+def get_outfit_concept(outfit_slot: str, category: str, sub_category: str) -> str:
+    category_l = normalize_text_value(category)
+    sub = str(sub_category or "").strip()
+
+    if "ethnic" in category_l:
+        if sub == "Anarkali":
+            return "Elegant ethnic look"
+        if sub == "Kurta":
+            return "Traditional ethnic look"
+        return "Classic ethnic style"
+    if sub == "Jeans":
+        return "Casual denim look"
+    if sub == "Skirt":
+        return "Chic casual look"
+    if sub in {"Shorts", "Trousers"}:
+        return "Modern casual look"
+    if sub == "Top":
+        return "Everyday casual look"
+    return "Contemporary style"
+
+
+def is_ethnic_like(category: str, name: str) -> bool:
+    category_l = normalize_text_value(category)
+    name_l = normalize_text_value(name)
+    return (
+        "ethnic" in category_l
+        or "kurta" in name_l
+        or "kurti" in name_l
+        or "anarkali" in name_l
+        or "dupatta" in name_l
+    )
+
+
+def bottom_style_priority(candidate: Dict[str, Any], source_is_ethnic: bool) -> int:
+    sub = normalize_text_value(candidate.get("subCategory", ""))
+    name = normalize_text_value(candidate.get("name", ""))
+
+    if source_is_ethnic:
+        order = {
+            "palazzo": 0,
+            "trousers": 1,
+            "leggings": 2,
+            "skirt": 3,
+            "jeans": 4,
+            "shorts": 8,
+        }
+        default_rank = 5
+    else:
+        order = {
+            "jeans": 0,
+            "trousers": 1,
+            "skirt": 2,
+            "shorts": 3,
+            "palazzo": 4,
+            "leggings": 5,
+        }
+        default_rank = 6
+
+    rank = order.get(sub, default_rank)
+    if "short" in name:
+        rank = max(rank, 8 if source_is_ethnic else 3)
+    return rank
+
+
+def normalize_product_pid(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        return str(int(float(value)))
+    except Exception:
+        return str(value).strip()
+
+
+def pick_best_outfit_candidate(
+    candidates: List[Dict[str, Any]],
+    target_slot: str,
+    source_idx: Any,
+    source_category: str,
+    source_name: str,
+    exclude_ids: set[str],
+):
+    pool = [c for c in candidates if str(c.get("_id", "")) not in exclude_ids]
+    if not pool:
+        return None
+
+    source_is_ethnic = is_ethnic_like(source_category, source_name)
+    source_category_norm = normalize_text_value(source_category)
+
+    if source_is_ethnic and normalize_text_value(target_slot) == "bottom":
+        non_shorts = [
+            c
+            for c in pool
+            if "short" not in normalize_text_value(c.get("subCategory", ""))
+            and "short" not in normalize_text_value(c.get("name", ""))
+        ]
+        if non_shorts:
+            pool = non_shorts
+
+    if source_category_norm == "ethnic":
+        ethnic_pool = [
+            c
+            for c in pool
+            if normalize_text_value(c.get("category", "")) == source_category_norm
+        ]
+        if len(ethnic_pool) >= 2:
+            pool = ethnic_pool
+
+    in_matrix: List[tuple[Dict[str, Any], str]] = []
+    for c in pool:
+        pid = normalize_product_pid(c.get("p_id"))
+        if pid and pid in p_id_to_idx:
+            in_matrix.append((c, pid))
+
+    if source_idx is not None and len(in_matrix) >= 2:
+        source_vec = runtime_matrix[source_idx]
+        candidate_indices = [p_id_to_idx[pid] for _, pid in in_matrix]
+        candidate_matrix = runtime_matrix[candidate_indices]
+        sim_scores = cosine_similarity(source_vec, candidate_matrix).flatten()
+
+        scored: List[tuple[float, int, Dict[str, Any]]] = []
+        for idx, (candidate, _) in enumerate(in_matrix):
+            sim = float(sim_scores[idx])
+            style_rank = (
+                bottom_style_priority(candidate, source_is_ethnic)
+                if normalize_text_value(target_slot) == "bottom"
+                else 0
+            )
+            scored.append((sim, style_rank, candidate))
+
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        return scored[0][2]
+
+    if normalize_text_value(target_slot) == "bottom":
+        pool.sort(key=lambda c: bottom_style_priority(c, source_is_ethnic))
+    return pool[0]
+
+
 def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -846,109 +1021,112 @@ async def recommend_complete_look(product_id: str, top_n: int = 4):
 
 @app.get("/recommend/outfit/{product_id}")
 async def recommend_outfit_builder(product_id: str, top_n: int = 4):
-    db = get_mongo_db()
-
-    source_doc = None
-    if ObjectId.is_valid(product_id):
-        source_doc = db["products"].find_one({"_id": ObjectId(product_id)})
-    if source_doc is None:
-        try:
-            source_p_id = int(float(product_id))
-            source_doc = db["products"].find_one({"p_id": source_p_id})
-        except Exception:
-            source_doc = None
-
-    if source_doc is None:
-        return []
-
-    source_category = str(source_doc.get("category", "") or "").strip()
-    source_group = infer_outfit_group(source_doc)
-    source_pid_raw = source_doc.get("p_id")
-    if source_pid_raw is None:
-        return []
-
     try:
-        source_pid = str(int(float(source_pid_raw)))
+        db = get_mongo_db()
+
+        source_doc = None
+        if ObjectId.is_valid(product_id):
+            source_doc = db["products"].find_one({"_id": ObjectId(product_id)})
+        if source_doc is None:
+            try:
+                source_p_id = int(float(product_id))
+                source_doc = db["products"].find_one({"p_id": source_p_id})
+            except Exception:
+                source_doc = None
+
+        if source_doc is None:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        source_slot = normalize_outfit_slot(source_doc)
+        source_category = str(source_doc.get("category", "") or "")
+        source_name = str(source_doc.get("name", "") or "")
+        source_sub_category = str(source_doc.get("subCategory", "") or "Top")
+        target_slots = get_outfit_slots(source_slot, source_category, source_name)
+        outfit_concept = get_outfit_concept(source_slot, source_category, source_sub_category)
+
+        source_pid_raw = source_doc.get("p_id")
+        source_pid = ""
+        source_idx = None
+        if source_pid_raw is not None:
+            try:
+                source_pid = str(int(float(source_pid_raw)))
+            except Exception:
+                source_pid = str(source_pid_raw).strip()
+            source_idx = p_id_to_idx.get(source_pid) if source_pid else None
+
+        max_items = max(2, min(max(top_n, 1), 4))
+        used_ids: set[str] = {str(source_doc.get("_id", ""))}
+        results: List[Dict[str, Any]] = []
+
+        def fetch_candidates(slot_name: str) -> List[Dict[str, Any]]:
+            return list(
+                db["products"].find(
+                    {
+                        "outfitSlot": slot_name,
+                        "stock": {"$gt": 0},
+                        "_id": {"$ne": source_doc.get("_id")},
+                    },
+                    {"_id": 1, "p_id": 1, "name": 1, "subCategory": 1, "category": 1},
+                )
+            )
+
+        def try_add_item(slot_name: str) -> bool:
+            candidates = fetch_candidates(slot_name)
+            if not candidates:
+                return False
+            best_match = pick_best_outfit_candidate(
+                candidates=candidates,
+                target_slot=slot_name,
+                source_idx=source_idx,
+                source_category=source_category,
+                source_name=source_name,
+                exclude_ids=used_ids,
+            )
+            if not best_match:
+                return False
+
+            best_id = str(best_match.get("_id", ""))
+            if best_id in used_ids:
+                return False
+            used_ids.add(best_id)
+
+            results.append(
+                {
+                    "productId": best_id,
+                    "slot": slot_name,
+                    "subCategory": str(best_match.get("subCategory", "") or ""),
+                    "concept": get_outfit_concept(
+                        slot_name,
+                        str(best_match.get("category", "") or ""),
+                        str(best_match.get("subCategory", "") or ""),
+                    ),
+                }
+            )
+            return True
+
+        for target_slot in target_slots:
+            if len(results) >= max_items:
+                break
+            try_add_item(target_slot)
+
+        if len(results) < 2:
+            if source_slot == "top":
+                fallback_slots = ["bottom", "bottom", "top", "dress", "outerwear", "accessory"]
+            elif source_slot == "bottom":
+                fallback_slots = ["top", "top", "bottom", "dress", "outerwear", "accessory"]
+            else:
+                fallback_slots = ["top", "bottom", "bottom", "dress", "outerwear", "accessory"]
+
+            for slot_name in fallback_slots:
+                if len(results) >= max_items:
+                    break
+                try_add_item(slot_name)
+
+        return {"outfitConcept": outfit_concept, "items": results}
+    except HTTPException:
+        raise
     except Exception:
-        source_pid = str(source_pid_raw).strip()
-
-    if not source_pid or source_pid not in p_id_to_idx:
-        return []
-
-    source_idx = p_id_to_idx[source_pid]
-    source_vec = runtime_matrix[source_idx]
-    sim_scores = cosine_similarity(source_vec, runtime_matrix).flatten()
-    ranked_indices = np.argsort(sim_scores)[::-1]
-
-    # Gather the top similar candidates first, then keep one highest-similarity item per category.
-    top_candidate_ids: List[str] = []
-    for idx in ranked_indices:
-        idx = int(idx)
-        if idx == source_idx:
-            continue
-        meta = rows_meta[idx] if idx < len(rows_meta) else {}
-        rec_id = str(meta.get("p_id", "")).strip()
-        if not rec_id:
-            continue
-        top_candidate_ids.append(rec_id)
-        if len(top_candidate_ids) >= 30:
-            break
-
-    if not top_candidate_ids:
-        return []
-
-    numeric_ids: List[int] = []
-    for pid in top_candidate_ids:
-        try:
-            numeric_ids.append(int(float(pid)))
-        except Exception:
-            continue
-    if not numeric_ids:
-        return []
-
-    docs = list(
-        db["products"].find(
-            {"p_id": {"$in": numeric_ids}},
-            {"p_id": 1, "category": 1, "name": 1, "description": 1, "p_attributes": 1},
-        )
-    )
-    candidate_meta_map: Dict[str, Dict[str, str]] = {}
-    for doc in docs:
-        p_id = doc.get("p_id")
-        if p_id is None:
-            continue
-        try:
-            pid_str = str(int(float(p_id)))
-        except Exception:
-            pid_str = str(p_id).strip()
-        if not pid_str:
-            continue
-        cat = str(doc.get("category", "") or "").strip()
-        group = infer_outfit_group(doc)
-        candidate_meta_map[pid_str] = {"category": cat, "outfit_group": group}
-
-    picked_by_group: Dict[str, Dict[str, Any]] = {}
-    for pid in top_candidate_ids:
-        meta = candidate_meta_map.get(pid)
-        if not meta:
-            continue
-        cat = meta.get("category", "").strip()
-        group = meta.get("outfit_group", "Other").strip() or "Other"
-        if not cat:
-            continue
-        if source_group and group == source_group:
-            continue
-        if group in picked_by_group:
-            continue
-        picked_by_group[group] = {
-            "p_id": pid,
-            "category": cat,
-            "outfit_group": group,
-        }
-        if len(picked_by_group) >= max(top_n, 1):
-            break
-
-    return list(picked_by_group.values())[: max(top_n, 1)]
+        return {"outfitConcept": None, "items": []}
 
 
 @app.get("/recommend/outfit-api/{product_id}")

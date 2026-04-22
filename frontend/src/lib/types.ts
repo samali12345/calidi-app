@@ -14,6 +14,8 @@ export interface Product {
   colour?: string;
   avg_rating?: number;
   ratingCount?: number;
+  outfitSlot?: "top" | "bottom" | "dress" | "accessory" | "outerwear";
+  subCategory?: string;
 }
 
 export interface CartItem {
