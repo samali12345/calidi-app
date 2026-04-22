@@ -23,6 +23,13 @@ interface AuthUser {
   loyaltyTier: string;
   loyaltyPoints: number;
   totalOrders: number;
+  nextTier: "silver" | "gold" | null;
+  nextTierThreshold: number | null;
+  ordersToNextTier: number;
+  nextTierDiscount: number | null;
+  currentTierDiscount: number;
+  currentTierMin: number;
+  progressPercent: number;
 }
 
 interface AuthContextType {

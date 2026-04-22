@@ -43,6 +43,9 @@ const protect = async (req, res, next) => {
       loyaltyTier: dbUser.loyaltyTier,
       loyaltyPoints: dbUser.loyaltyPoints,
       totalOrders: dbUser.totalOrders,
+      pointsEarnedAt: dbUser.pointsEarnedAt || null,
+      pointsExpiryWarnedAt: dbUser.pointsExpiryWarnedAt || null,
+      pointsExpiryWarnedFor: dbUser.pointsExpiryWarnedFor || null,
     };
 
     next();

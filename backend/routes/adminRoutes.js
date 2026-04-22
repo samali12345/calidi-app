@@ -14,6 +14,9 @@ router.use(protect, requireAdmin);
 // Dashboard
 router.get("/dashboard/stats", admin.getDashboardStats);
 router.get("/dashboard/sales", admin.getSalesData);
+router.get("/settings/double-points", admin.getDoublePointsSetting);
+router.put("/settings/double-points", admin.updateDoublePointsSetting);
+router.get("/stripe/overview", admin.getStripeOverview);
 
 // Products
 router.get("/products", admin.getProducts);
@@ -41,6 +44,12 @@ router.put("/riders/:riderId/approval", admin.updateRiderApproval);
 
 // Customers
 router.get("/customers", admin.getCustomers);
+
+// Coupons
+router.post("/coupons", admin.createCoupon);
+router.get("/coupons", admin.getCoupons);
+router.put("/coupons/:id", admin.updateCoupon);
+router.delete("/coupons/:id", admin.deleteCoupon);
 
 // Reports
 router.get("/reports/sales", admin.getSalesReport);

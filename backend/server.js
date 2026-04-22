@@ -6,11 +6,17 @@ const productRoutes = require('./routes/productRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { router: checkoutRoutes, stripeWebhookHandler } = require('./routes/checkoutRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const couponRoutes = require('./routes/couponRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+const userRoutes = require('./routes/userRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
 const riderRoutes = require('./routes/riderRoutes');
 const { startExpiryService } = require('./services/orderExpiry');
 const { startRecommendationIndexer } = require('./services/recommendationIndexer');
+const { startPointsExpiryService } = require('./services/pointsExpiryService');
+const { startCartRecoveryService } = require('./services/cartRecoveryService');
 
 const app = express();
 
@@ -40,6 +46,10 @@ app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/rider', riderRoutes);
@@ -51,6 +61,8 @@ mongoose.connect(process.env.MONGODB_URI)
     console.log("📦 Connected to MongoDB Atlas");
     startExpiryService();
     startRecommendationIndexer();
+    startPointsExpiryService();
+    startCartRecoveryService();
     app.listen(PORT, () => {
       console.log(`🚀 Node Server running on http://127.0.0.1:${PORT}`);
     });

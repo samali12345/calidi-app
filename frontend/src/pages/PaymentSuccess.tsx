@@ -127,10 +127,26 @@ export default function PaymentSuccess() {
     doc.text(`LKR ${invoice.order.subtotal.toLocaleString()}`, rightCol, y, { align: "right" });
     y += 6;
 
-    if (invoice.order.discount > 0) {
+    if ((invoice.order.tierDiscount || 0) > 0) {
       doc.setTextColor(34, 139, 34);
-      doc.text(`Loyalty Discount (${invoice.order.loyaltyTierAtPurchase}):`, rightCol - 50, y);
-      doc.text(`-LKR ${invoice.order.discount.toLocaleString()}`, rightCol, y, { align: "right" });
+      doc.text(`Loyalty Tier Discount (${invoice.order.loyaltyTierAtPurchase}):`, rightCol - 50, y);
+      doc.text(`-LKR ${(invoice.order.tierDiscount || 0).toLocaleString()}`, rightCol, y, { align: "right" });
+      doc.setTextColor(0);
+      y += 6;
+    }
+
+    if ((invoice.order.pointsDiscount || 0) > 0) {
+      doc.setTextColor(34, 139, 34);
+      doc.text(`Points Redemption (${invoice.order.redeemPointsApplied || 0} pts):`, rightCol - 50, y);
+      doc.text(`-LKR ${(invoice.order.pointsDiscount || 0).toLocaleString()}`, rightCol, y, { align: "right" });
+      doc.setTextColor(0);
+      y += 6;
+    }
+
+    if ((invoice.order.couponDiscount || 0) > 0) {
+      doc.setTextColor(34, 139, 34);
+      doc.text(`Promo Code (${invoice.order.couponCode || "APPLIED"}):`, rightCol - 50, y);
+      doc.text(`-LKR ${(invoice.order.couponDiscount || 0).toLocaleString()}`, rightCol, y, { align: "right" });
       doc.setTextColor(0);
       y += 6;
     }
@@ -194,10 +210,22 @@ export default function PaymentSuccess() {
                 <span>Subtotal</span>
                 <span>LKR {order.subtotal.toLocaleString()}</span>
               </div>
-              {order.discount > 0 && (
+              {(order.tierDiscount || 0) > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Loyalty Discount</span>
-                  <span>-LKR {order.discount.toLocaleString()}</span>
+                  <span>Loyalty Tier Discount</span>
+                  <span>-LKR {(order.tierDiscount || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {(order.pointsDiscount || 0) > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Points Redemption ({order.redeemPointsApplied || 0} pts)</span>
+                  <span>-LKR {(order.pointsDiscount || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {(order.couponDiscount || 0) > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Promo Code ({order.couponCode || "APPLIED"})</span>
+                  <span>-LKR {(order.couponDiscount || 0).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-muted-foreground">

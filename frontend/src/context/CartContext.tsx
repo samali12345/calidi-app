@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import type { CartItem, Product } from "@/lib/types";
+import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 
 interface CartContextType {
   items: CartItem[];
@@ -20,6 +22,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const { user, token } = useAuth();
 
   const addItem = useCallback((product: Product, size: string) => {
     setItems((prev) => {
@@ -78,6 +81,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
   const deliveryFee = totalItems >= 5 ? 0 : 350;
   const freeDeliveryItemsNeeded = Math.max(0, 5 - totalItems);
+
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const timeout = setTimeout(() => {
+      const payloadItems = items.map((item) => ({
+        productId: item.product.p_id,
+        name: item.product.name,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.product.price,
+      }));
+
+      void apiFetch("/cart/activity", {
+        method: "POST",
+        token,
+        body: {
+          items: payloadItems,
+          totalValue: totalPrice,
+        },
+      }).catch(() => {});
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [items, totalPrice, user, token]);
 
   return (
     <CartContext.Provider

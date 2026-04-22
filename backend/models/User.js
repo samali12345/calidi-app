@@ -86,6 +86,18 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    pointsEarnedAt: {
+      type: Date,
+      default: null,
+    },
+    pointsExpiryWarnedAt: {
+      type: Date,
+      default: null,
+    },
+    pointsExpiryWarnedFor: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

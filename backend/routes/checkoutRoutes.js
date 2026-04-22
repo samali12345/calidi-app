@@ -117,13 +117,20 @@ router.post("/create-session", protect, async (req, res) => {
     const customers = await stripe.customers.list({ email: req.user.email, limit: 1 });
     const customerId = customers.data[0]?.id;
 
+    const originHeader = typeof req.headers.origin === "string" ? req.headers.origin : "";
+    const isLocalOrigin = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(originHeader);
+    const clientBaseUrl = isLocalOrigin ? originHeader : process.env.CLIENT_URL;
+    if (!clientBaseUrl) {
+      return res.status(500).json({ error: "CLIENT_URL is not configured" });
+    }
+
     const successUrl = checkoutOrder
-      ? `${process.env.CLIENT_URL}/payment-success/${checkoutOrder.orderId}?session_id={CHECKOUT_SESSION_ID}`
-      : `${process.env.CLIENT_URL}/payment-success`;
+      ? `${clientBaseUrl}/payment-success/${checkoutOrder.orderId}?session_id={CHECKOUT_SESSION_ID}`
+      : `${clientBaseUrl}/payment-success`;
 
     const cancelUrl = checkoutOrder
-      ? `${process.env.CLIENT_URL}/payment/${checkoutOrder.orderId}`
-      : `${process.env.CLIENT_URL}/payment-canceled`;
+      ? `${clientBaseUrl}/payment/${checkoutOrder.orderId}`
+      : `${clientBaseUrl}/payment-canceled`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -133,6 +140,9 @@ router.post("/create-session", protect, async (req, res) => {
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata,
+      payment_intent_data: {
+        metadata,
+      },
     });
 
     if (checkoutOrder) {
@@ -151,4 +161,3 @@ module.exports = {
   router,
   stripeWebhookHandler,
 };
-

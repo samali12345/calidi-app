@@ -3,10 +3,17 @@ import { useCart } from "@/context/CartContext";
 import { Minus, Plus, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import TierProgressBar from "@/components/TierProgressBar";
 
 export default function CartDrawer() {
   const { items, isOpen, setIsOpen, removeItem, updateQuantity, totalPrice, deliveryFee, freeDeliveryItemsNeeded, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const loyaltyTier = user?.loyaltyTier || "none";
+  const tierDiscountPercent = loyaltyTier === "gold" ? 15 : loyaltyTier === "silver" ? 10 : 0;
+  const loyaltyDiscountAmount = Math.round(totalPrice * (tierDiscountPercent / 100));
+  const totalAfterTierDiscount = totalPrice - loyaltyDiscountAmount + deliveryFee;
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -105,13 +112,33 @@ export default function CartDrawer() {
                   <span className="font-body text-sm text-muted-foreground">Subtotal</span>
                   <span className="font-body text-sm text-foreground">LKR {totalPrice.toLocaleString()}</span>
                 </div>
+                {loyaltyDiscountAmount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-body text-sm text-green-600">Loyalty Tier Discount ({tierDiscountPercent}%)</span>
+                    <span className="font-body text-sm text-green-600">-LKR {loyaltyDiscountAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                {user && (
+                  <TierProgressBar
+                    compact
+                    tier={user.loyaltyTier}
+                    totalOrders={user.totalOrders}
+                    nextTier={user.nextTier}
+                    nextTierThreshold={user.nextTierThreshold}
+                    ordersToNextTier={user.ordersToNextTier}
+                    nextTierDiscount={user.nextTierDiscount}
+                    currentTierDiscount={user.currentTierDiscount}
+                    currentTierMin={user.currentTierMin}
+                    progressPercent={user.progressPercent}
+                  />
+                )}
                 <div className="flex justify-between items-center">
                   <span className="font-body text-sm text-muted-foreground">Delivery</span>
                   <span className="font-body text-sm text-foreground">{deliveryFee === 0 ? "Free" : `LKR ${deliveryFee}`}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-border">
                   <span className="font-body text-sm uppercase tracking-wider text-muted-foreground">Total</span>
-                  <span className="font-display text-lg text-foreground">LKR {(totalPrice + deliveryFee).toLocaleString()}</span>
+                  <span className="font-display text-lg text-foreground">LKR {totalAfterTierDiscount.toLocaleString()}</span>
                 </div>
               </div>
               <Button
