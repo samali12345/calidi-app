@@ -13,6 +13,7 @@ const {
 } = require("../services/orderPaymentService");
 const Coupon = require("../models/Coupon");
 const { upsertDoublePointsSetting, getDoublePointsStatus } = require("../services/doublePointsService");
+const Stripe = require("stripe");
 
 const TERMINAL_DELIVERY_STATUSES = ["delivered", "failed", "returned"];
 const PRODUCT_HAS_IMAGE_FILTER = {
@@ -43,6 +44,13 @@ const fetchJsonWithRetry = async (url, options = {}, attempts = 3) => {
   }
 
   throw lastError || new Error("Request failed");
+};
+
+const getStripeClient = () => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY is not configured");
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
 };
 
 const geocodeAddress = async (query) => {
@@ -488,6 +496,68 @@ exports.getDoublePointsSetting = async (_req, res) => {
     return res.json(status.active ? { active: true, endsAt: status.endsAt } : { active: false });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch double points setting" });
+  }
+};
+
+// GET /api/admin/stripe/overview
+exports.getStripeOverview = async (_req, res) => {
+  try {
+    const stripe = getStripeClient();
+    const [balance, paymentIntents] = await Promise.all([
+      stripe.balance.retrieve(),
+      stripe.paymentIntents.list({ limit: 10 }),
+    ]);
+
+    const usdToLkrRate = Number(process.env.STRIPE_USD_TO_LKR_RATE || 300);
+    const toMajor = (amount) => (Number.isFinite(amount) ? amount / 100 : 0);
+    const toLkr = (amount, currency) => {
+      const normalized = String(currency || "").toLowerCase();
+      const major = toMajor(amount);
+      if (normalized === "lkr") return Math.round(major);
+      if (normalized === "usd") return Math.round(major * usdToLkrRate);
+      return 0;
+    };
+
+    const summarize = (entries) =>
+      (entries || []).map((entry) => ({
+        currency: String(entry.currency || "").toUpperCase(),
+        amountMajor: toMajor(entry.amount),
+        lkrEquivalent: toLkr(entry.amount, entry.currency),
+      }));
+
+    const availableBreakdown = summarize(balance.available);
+    const pendingBreakdown = summarize(balance.pending);
+
+    const lkrAvailable = availableBreakdown.reduce((sum, entry) => sum + entry.lkrEquivalent, 0);
+    const lkrPending = pendingBreakdown.reduce((sum, entry) => sum + entry.lkrEquivalent, 0);
+
+    const recentPayments = (paymentIntents.data || []).map((pi) => ({
+      id: pi.id,
+      amountMajor: toMajor(pi.amount_received || pi.amount || 0),
+      lkrAmount: toLkr(pi.amount_received || pi.amount || 0, pi.currency),
+      currency: String(pi.currency || "").toUpperCase(),
+      status: pi.status,
+      createdAt: pi.created ? new Date(pi.created * 1000) : null,
+      orderId: pi.metadata?.orderId || null,
+      receiptEmail: pi.receipt_email || null,
+    }));
+
+    return res.json({
+      balance: {
+        lkrAvailable,
+        lkrPending,
+        availableBreakdown,
+        pendingBreakdown,
+        usdToLkrRate,
+      },
+      recentPayments,
+    });
+  } catch (err) {
+    const message = String(err?.message || "");
+    if (message.includes("STRIPE_SECRET_KEY")) {
+      return res.status(500).json({ error: "Stripe is not configured" });
+    }
+    return res.status(500).json({ error: "Failed to fetch Stripe overview" });
   }
 };
 

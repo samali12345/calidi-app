@@ -16,6 +16,7 @@ router.get("/dashboard/stats", admin.getDashboardStats);
 router.get("/dashboard/sales", admin.getSalesData);
 router.get("/settings/double-points", admin.getDoublePointsSetting);
 router.put("/settings/double-points", admin.updateDoublePointsSetting);
+router.get("/stripe/overview", admin.getStripeOverview);
 
 // Products
 router.get("/products", admin.getProducts);

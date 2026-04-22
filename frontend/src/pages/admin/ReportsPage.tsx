@@ -15,7 +15,7 @@ const COLORS = ["#8b5cf6", "#f59e0b", "#ef4444", "#10b981", "#3b82f6", "#ec4899"
 
 export default function ReportsPage() {
   const { token } = useAuth();
-  const [tab, setTab] = useState<"sales" | "stock">("sales");
+  const [tab, setTab] = useState<"sales" | "stock" | "stripe">("sales");
 
   // Sales state
   const [startDate, setStartDate] = useState(() => {
@@ -28,6 +28,24 @@ export default function ReportsPage() {
 
   // Stock state
   const [stockReport, setStockReport] = useState<any>(null);
+  const [stripeOverview, setStripeOverview] = useState<{
+    balance: {
+      lkrAvailable: number;
+      lkrPending: number;
+      usdToLkrRate: number;
+      availableBreakdown: Array<{ currency: string; amountMajor: number; lkrEquivalent: number }>;
+      pendingBreakdown: Array<{ currency: string; amountMajor: number; lkrEquivalent: number }>;
+    };
+    recentPayments: Array<{
+      id: string;
+      amountMajor: number;
+      lkrAmount: number;
+      currency: string;
+      status: string;
+      createdAt: string | null;
+      orderId: string | null;
+    }>;
+  } | null>(null);
 
   const fetchSalesReport = async () => {
     if (!token) return;
@@ -49,9 +67,20 @@ export default function ReportsPage() {
     }
   };
 
+  const fetchStripeOverview = async () => {
+    if (!token) return;
+    try {
+      const data = await apiFetch("/admin/stripe/overview", { token });
+      setStripeOverview(data);
+    } catch {
+      toast.error("Failed to load Stripe overview");
+    }
+  };
+
   useEffect(() => {
     if (tab === "sales") fetchSalesReport();
-    else fetchStockReport();
+    else if (tab === "stock") fetchStockReport();
+    else fetchStripeOverview();
   }, [token, tab]);
 
   const exportCSV = () => {
@@ -86,6 +115,12 @@ export default function ReportsPage() {
           className={`font-body text-xs uppercase tracking-wider px-3 py-1.5 rounded-sm ${tab === "stock" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-secondary"}`}
         >
           Stock
+        </button>
+        <button
+          onClick={() => setTab("stripe")}
+          className={`font-body text-xs uppercase tracking-wider px-3 py-1.5 rounded-sm ${tab === "stripe" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-secondary"}`}
+        >
+          Stripe
         </button>
       </div>
 
@@ -200,6 +235,79 @@ export default function ReportsPage() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "stripe" && (
+        <div className="space-y-6">
+          {stripeOverview && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-secondary/30 border border-border rounded-sm p-4 text-center">
+                  <p className="font-display text-xl text-foreground">
+                    LKR {stripeOverview.balance.lkrAvailable.toLocaleString()}
+                  </p>
+                  <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">
+                    Stripe Available Balance
+                  </p>
+                </div>
+                <div className="bg-secondary/30 border border-border rounded-sm p-4 text-center">
+                  <p className="font-display text-xl text-foreground">
+                    LKR {stripeOverview.balance.lkrPending.toLocaleString()}
+                  </p>
+                  <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">
+                    Stripe Pending Balance
+                  </p>
+                </div>
+              </div>
+
+              <p className="font-body text-xs text-muted-foreground">
+                USD values are converted using 1 USD = LKR {stripeOverview.balance.usdToLkrRate}
+              </p>
+
+              <div className="border border-border rounded-sm overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-secondary border-b border-border">
+                    <tr>
+                      <th className="text-left font-body text-xs uppercase tracking-wider text-muted-foreground p-3">Payment Intent</th>
+                      <th className="text-left font-body text-xs uppercase tracking-wider text-muted-foreground p-3">Order</th>
+                      <th className="text-right font-body text-xs uppercase tracking-wider text-muted-foreground p-3">Amount</th>
+                      <th className="text-right font-body text-xs uppercase tracking-wider text-muted-foreground p-3">LKR Eqv</th>
+                      <th className="text-left font-body text-xs uppercase tracking-wider text-muted-foreground p-3">Status</th>
+                      <th className="text-left font-body text-xs uppercase tracking-wider text-muted-foreground p-3">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stripeOverview.recentPayments.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-4 text-center font-body text-sm text-muted-foreground">
+                          No Stripe payments yet
+                        </td>
+                      </tr>
+                    )}
+                    {stripeOverview.recentPayments.map((payment) => (
+                      <tr key={payment.id} className="border-b border-border last:border-0">
+                        <td className="p-3 font-body text-xs text-foreground">{payment.id}</td>
+                        <td className="p-3 font-body text-sm text-muted-foreground">
+                          {payment.orderId || "-"}
+                        </td>
+                        <td className="p-3 font-body text-sm text-foreground text-right">
+                          {payment.currency} {payment.amountMajor.toLocaleString()}
+                        </td>
+                        <td className="p-3 font-body text-sm text-foreground text-right">
+                          LKR {payment.lkrAmount.toLocaleString()}
+                        </td>
+                        <td className="p-3 font-body text-sm text-foreground">{payment.status}</td>
+                        <td className="p-3 font-body text-sm text-muted-foreground">
+                          {payment.createdAt ? new Date(payment.createdAt).toLocaleString() : "-"}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
