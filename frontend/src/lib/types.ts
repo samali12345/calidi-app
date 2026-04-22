@@ -56,11 +56,20 @@ export interface Order {
     country: string;
   };
   subtotal: number;
+  tierDiscount?: number;
+  pointsDiscount?: number;
+  couponCode?: string;
+  couponDiscount?: number;
+  couponUsageStatus?: "none" | "pending" | "applied" | "refunded";
   discount: number;
   deliveryFee: number;
   total: number;
   loyaltyPointsEarned: number;
   loyaltyTierAtPurchase: string;
+  redeemPointsRequested?: number;
+  redeemPointsApplied?: number;
+  pointsRedemptionStatus?: "none" | "pending" | "deducted" | "refunded";
+  loyaltyProcessed?: boolean;
   status: "pending" | "paid" | "expired" | "cancelled";
   paymentMethod: string;
   expiresAt: string;
@@ -206,4 +215,19 @@ export interface SalesDataPoint {
   date: string;
   revenue: number;
   orderCount: number;
+}
+
+export interface Coupon {
+  _id: string;
+  code: string;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  minOrderValue: number;
+  maxUses: number | null;
+  usedCount: number;
+  expiresAt: string | null;
+  isActive: boolean;
+  usedBy: string[];
+  createdAt: string;
+  updatedAt: string;
 }
