@@ -10,6 +10,9 @@ const {
 } = require("./setup");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
+const User = require("../models/User");
+const Coupon = require("../models/Coupon");
+const CartActivity = require("../models/CartActivity");
 
 let app;
 
@@ -172,5 +175,206 @@ describe("Order Security", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe("Loyalty Redemption", () => {
+  test("should apply points redemption and deduct on payment", async () => {
+    await createTestUser({
+      email: "redeem@example.com",
+      loyaltyPoints: 200,
+      loyaltyTier: "silver",
+      totalOrders: 4,
+    });
+    mockUserToken("redeem@example.com", "redeem-uid");
+    await createTestProduct({ p_id: 501, price: 1000, stock: 10 });
+
+    const createRes = await request(app)
+      .post("/api/orders")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        redeemPoints: 100,
+        items: [{ productId: 501, size: "M", quantity: 2 }],
+        shippingAddress: {
+          fullName: "Redeem User",
+          street: "123 St",
+          city: "City",
+          state: "State",
+          zip: "10000",
+          country: "LK",
+        },
+        deliveryDetails: {
+          recipientName: "Redeem User",
+          contactNumber: "+94770000000",
+          deliveryNotes: "",
+          deliveryMethod: "standard",
+          scheduledDate: null,
+          scheduledTimeSlot: "any",
+        },
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.tierDiscount).toBe(200);
+    expect(createRes.body.pointsDiscount).toBe(100);
+    expect(createRes.body.discount).toBe(300);
+    expect(createRes.body.pointsRedemptionStatus).toBe("pending");
+
+    const payRes = await request(app)
+      .post(`/api/orders/${createRes.body.orderId}/pay`)
+      .set("Authorization", "Bearer valid-token");
+
+    expect(payRes.status).toBe(200);
+
+    const updatedUser = await User.findOne({ email: "redeem@example.com" });
+    expect(updatedUser.loyaltyPoints).toBe(120); // 200 - 100 + floor(2050/100)
+    expect(updatedUser.totalOrders).toBe(5);
+    expect(updatedUser.loyaltyTier).toBe("silver");
+
+    const paidOrder = await Order.findOne({ orderId: createRes.body.orderId });
+    expect(paidOrder.pointsRedemptionStatus).toBe("deducted");
+  });
+
+  test("should reject redemption above 50% of subtotal", async () => {
+    await createTestUser({
+      email: "cap@example.com",
+      loyaltyPoints: 500,
+    });
+    mockUserToken("cap@example.com", "cap-uid");
+    await createTestProduct({ p_id: 502, price: 1000, stock: 10 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        redeemPoints: 600,
+        items: [{ productId: 502, size: "M", quantity: 1 }],
+        shippingAddress: {
+          fullName: "Cap User",
+          street: "123 St",
+          city: "City",
+          state: "State",
+          zip: "10000",
+          country: "LK",
+        },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most/i);
+  });
+
+  test("should apply coupon discount and mark usage on payment", async () => {
+    await createTestUser({
+      email: "coupon@example.com",
+      loyaltyPoints: 0,
+      loyaltyTier: "none",
+      totalOrders: 0,
+    });
+    await Coupon.create({
+      code: "CALIDI10",
+      discountType: "percentage",
+      discountValue: 10,
+      minOrderValue: 500,
+      maxUses: 5,
+      usedCount: 0,
+      isActive: true,
+      usedBy: [],
+    });
+    mockUserToken("coupon@example.com", "coupon-uid");
+    await createTestProduct({ p_id: 503, price: 1000, stock: 10 });
+
+    const createRes = await request(app)
+      .post("/api/orders")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        couponCode: "calidi10",
+        items: [{ productId: 503, size: "M", quantity: 2 }],
+        shippingAddress: {
+          fullName: "Coupon User",
+          street: "123 St",
+          city: "City",
+          state: "State",
+          zip: "10000",
+          country: "LK",
+        },
+        deliveryDetails: {
+          recipientName: "Coupon User",
+          contactNumber: "+94771111111",
+          deliveryNotes: "",
+          deliveryMethod: "standard",
+          scheduledDate: null,
+          scheduledTimeSlot: "any",
+        },
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.couponCode).toBe("CALIDI10");
+    expect(createRes.body.couponDiscount).toBe(200);
+    expect(createRes.body.total).toBe(2150); // 2000 - 200 + 350
+
+    const payRes = await request(app)
+      .post(`/api/orders/${createRes.body.orderId}/pay`)
+      .set("Authorization", "Bearer valid-token");
+    expect(payRes.status).toBe(200);
+
+    const coupon = await Coupon.findOne({ code: "CALIDI10" });
+    expect(coupon.usedCount).toBe(1);
+    expect(coupon.usedBy).toContain("coupon-uid");
+  });
+});
+
+describe("Abandoned Cart Activity", () => {
+  test("should upsert cart activity for logged-in user", async () => {
+    await createTestUser({ email: "cart@example.com" });
+    mockUserToken("cart@example.com", "cart-uid");
+
+    const res = await request(app)
+      .post("/api/cart/activity")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        items: [{ productId: 101, quantity: 2, unitPrice: 1200 }],
+        totalValue: 2400,
+      });
+
+    expect(res.status).toBe(200);
+
+    const activity = await CartActivity.findOne({ userId: "cart-uid" });
+    expect(activity).toBeTruthy();
+    expect(activity.totalValue).toBe(2400);
+    expect(activity.notificationSent).toBe(false);
+  });
+
+  test("should clear cart activity when order is created", async () => {
+    await createTestUser({ email: "cartclear@example.com" });
+    mockUserToken("cartclear@example.com", "cartclear-uid");
+    await createTestProduct({ p_id: 601, stock: 10, price: 1000 });
+
+    await CartActivity.create({
+      userId: "cartclear-uid",
+      userEmail: "cartclear@example.com",
+      items: [{ productId: 601, quantity: 1 }],
+      totalValue: 1000,
+      notificationSent: false,
+      lastUpdatedAt: new Date(),
+    });
+
+    const createRes = await request(app)
+      .post("/api/orders")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        items: [{ productId: 601, size: "M", quantity: 1 }],
+        shippingAddress: {
+          fullName: "Cart Clear User",
+          street: "123 St",
+          city: "City",
+          state: "State",
+          zip: "10000",
+          country: "LK",
+        },
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const activityAfter = await CartActivity.findOne({ userId: "cartclear-uid" });
+    expect(activityAfter).toBeNull();
   });
 });
