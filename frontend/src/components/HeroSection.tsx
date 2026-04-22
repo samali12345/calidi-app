@@ -1,7 +1,41 @@
+import { useEffect, useMemo, useState } from "react";
 import heroImage from "@/assets/hero-1.png";
 import { Link } from "react-router-dom";
+import { apiFetch } from "@/lib/api";
 
 export default function HeroSection() {
+  const [doublePoints, setDoublePoints] = useState<{ active: boolean; endsAt: string | null }>({
+    active: false,
+    endsAt: null,
+  });
+  const [nowTs, setNowTs] = useState(Date.now());
+
+  useEffect(() => {
+    apiFetch<{ active: boolean; endsAt?: string }>("/settings/double-points")
+      .then((status) => {
+        setDoublePoints({ active: !!status.active, endsAt: status.endsAt || null });
+      })
+      .catch(() => {
+        setDoublePoints({ active: false, endsAt: null });
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!doublePoints.active || !doublePoints.endsAt) return;
+    const timer = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [doublePoints.active, doublePoints.endsAt]);
+
+  const countdownText = useMemo(() => {
+    if (!doublePoints.active || !doublePoints.endsAt) return "";
+    const endsAtMs = new Date(doublePoints.endsAt).getTime();
+    const diff = Math.max(0, endsAtMs - nowTs);
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }, [doublePoints.active, doublePoints.endsAt, nowTs]);
+
   return (
     <section className="relative h-[85vh] min-h-[500px] overflow-hidden">
       <img
@@ -11,6 +45,12 @@ export default function HeroSection() {
         loading="eager"
       />
       <div className="absolute inset-0 bg-foreground/20" />
+      {doublePoints.active && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-amber-100/95 text-amber-900 border border-amber-300 rounded-sm px-4 py-2 text-xs font-body tracking-wide">
+          Double Points this weekend - earn 2x loyalty points on all orders!
+          {countdownText ? ` Ends in ${countdownText}` : ""}
+        </div>
+      )}
       <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-6">
         <p className="font-body text-sm tracking-[0.4em] uppercase text-background/90 mb-4">
           New Season
