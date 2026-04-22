@@ -234,29 +234,50 @@ router.get('/outfit/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
     const topN = Number(req.query.top_n || req.query.top || 4);
-    const engine = String(req.query.engine || "internal").toLowerCase();
-    const pythonEndpoint =
-      engine === "api"
-        ? `/recommend/outfit-api/${encodeURIComponent(String(productId))}`
-        : `/recommend/outfit/${encodeURIComponent(String(productId))}`;
+
+    const sourceConditions = [
+      Number.isFinite(Number(productId)) ? { p_id: Number(productId) } : null,
+      mongoose.Types.ObjectId.isValid(String(productId))
+        ? { _id: new mongoose.Types.ObjectId(String(productId)) }
+        : null,
+    ].filter(Boolean);
+    if (sourceConditions.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const sourceProduct = await mongoose.connection.db.collection('products').findOne({
+      $or: sourceConditions,
+    });
+    if (!sourceProduct) {
+      return res.status(404).json({ error: "Product not found" });
+    }
 
     const pythonRes = await axios.get(
-      `${PYTHON_SERVICE_URL}${pythonEndpoint}`,
-      { params: { top_n: topN } }
+      `${PYTHON_SERVICE_URL}/recommend/outfit/${encodeURIComponent(String(productId))}`,
+      { params: { top_n: topN }, timeout: 5000 }
     );
 
-    const recs = Array.isArray(pythonRes.data) ? pythonRes.data : [];
-    const enriched = [];
+    const payload = pythonRes.data || {};
+    const recItems = Array.isArray(payload)
+      ? payload
+      : (Array.isArray(payload.items) ? payload.items : []);
+    const enrichedItems = [];
 
-    for (let i = 0; i < recs.length; i += 1) {
-      const rec = recs[i] || {};
-      const recId = rec?.p_id;
-      if (recId === undefined || recId === null) continue;
+    for (const rec of recItems) {
+      const recProductId = String(rec?.productId || rec?.p_id || rec?.id || "").trim();
+      if (!recProductId) continue;
 
-      let pIdNum = Number(recId);
-      if (!Number.isFinite(pIdNum)) continue;
-
-      const product = await mongoose.connection.db.collection('products').findOne({ p_id: pIdNum });
+      let product = null;
+      if (mongoose.Types.ObjectId.isValid(recProductId)) {
+        product = await mongoose.connection.db.collection('products').findOne({
+          _id: new mongoose.Types.ObjectId(recProductId),
+        });
+      }
+      if (!product && Number.isFinite(Number(recProductId))) {
+        product = await mongoose.connection.db.collection('products').findOne({
+          p_id: Number(recProductId),
+        });
+      }
       if (!product) continue;
 
       const normalizedProduct = {
@@ -270,24 +291,33 @@ router.get('/outfit/:productId', async (req, res) => {
         description: stripHtml(product.description || ""),
         sizes: ["S", "M", "L", "XL", "XXL"],
         stock: product.stock ?? 50,
+        outfitSlot: product.outfitSlot || "top",
+        subCategory: product.subCategory || "Top",
       };
 
-      enriched.push({
-        role: rec.role || (i === 0 ? "Pair with" : "Complete with"),
-        category: rec.outfit_group || rec.category || normalizedProduct.category || "",
-        reason: rec.reason || "",
+      enrichedItems.push({
         product: normalizedProduct,
+        slot: String(rec?.slot || rec?.outfit_group || ""),
+        subCategory: String(rec?.subCategory || normalizedProduct.subCategory || ""),
+        concept: String(rec?.concept || ""),
       });
     }
 
-    return res.json(enriched);
+    return res.json({
+      outfitConcept: (Array.isArray(payload) ? null : (payload.outfitConcept || null)),
+      items: enrichedItems,
+    });
   } catch (err) {
-    const status = err?.response?.status;
+    if (err?.code === "ECONNABORTED") {
+      console.error("Outfit builder timeout:", err.message);
+      return res.json({ outfitConcept: null, items: [] });
+    }
+    const status = Number(err?.response?.status || 0);
     if (status === 404) {
-      return res.json([]);
+      return res.status(404).json({ error: "Product not found" });
     }
     console.error("Bridge to Python (outfit builder) failed:", err.message);
-    return res.json([]);
+    return res.json({ outfitConcept: null, items: [] });
   }
 });
 
