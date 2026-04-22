@@ -1,12 +1,31 @@
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { User, Award, ShoppingBag, Star } from "lucide-react";
 import LoyaltyBadge from "@/components/LoyaltyBadge";
+import TierProgressBar from "@/components/TierProgressBar";
+import { useEffect, useState } from "react";
 
 export default function Profile() {
-  const { user, loading } = useAuth();
+  const { user, token, loading } = useAuth();
+  const [pointsExpiry, setPointsExpiry] = useState<{
+    pointsExpireAt: string | null;
+    daysUntilExpiry: number | null;
+    loyaltyPoints: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiFetch<{
+      pointsExpireAt: string | null;
+      daysUntilExpiry: number | null;
+      loyaltyPoints: number;
+    }>("/user/points-expiry", { token })
+      .then(setPointsExpiry)
+      .catch(() => setPointsExpiry(null));
+  }, [token]);
 
   if (!loading && !user) return <Navigate to="/auth" />;
   if (loading) {
@@ -16,17 +35,6 @@ export default function Profile() {
       </main>
     );
   }
-
-  const tierProgress = () => {
-    if (!user) return null;
-    if (user.loyaltyTier === "gold") return null;
-    const target = user.loyaltyTier === "silver" ? 15 : 5;
-    const label = user.loyaltyTier === "silver" ? "Gold" : "Silver";
-    const remaining = target - user.totalOrders;
-    return { label, remaining, target, current: user.totalOrders };
-  };
-
-  const progress = tierProgress();
 
   return (
     <main className="min-h-[70vh] py-12 px-6">
@@ -75,6 +83,14 @@ export default function Profile() {
               <div className="bg-secondary/50 p-4 rounded-sm text-center">
                 <p className="font-display text-2xl text-foreground">{user?.loyaltyPoints || 0}</p>
                 <p className="font-body text-xs text-muted-foreground mt-1">Points</p>
+                {pointsExpiry?.loyaltyPoints ? (
+                  <p className="font-body text-[11px] text-muted-foreground mt-1">
+                    Expires on{" "}
+                    {pointsExpiry.pointsExpireAt
+                      ? new Date(pointsExpiry.pointsExpireAt).toLocaleDateString()
+                      : "—"}
+                  </p>
+                ) : null}
               </div>
               <div className="bg-secondary/50 p-4 rounded-sm text-center">
                 <p className="font-display text-2xl text-foreground">{user?.totalOrders || 0}</p>
@@ -82,21 +98,42 @@ export default function Profile() {
               </div>
             </div>
 
-            {progress && (
-              <div className="bg-secondary/30 p-4 rounded-sm">
-                <div className="flex justify-between font-body text-sm mb-2">
-                  <span className="text-muted-foreground">Progress to {progress.label}</span>
-                  <span className="text-foreground">{progress.current}/{progress.target} orders</span>
-                </div>
-                <div className="w-full bg-secondary rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all"
-                    style={{ width: `${(progress.current / progress.target) * 100}%` }}
-                  />
-                </div>
-                <p className="font-body text-xs text-muted-foreground mt-2">
-                  {progress.remaining} more order{progress.remaining > 1 ? "s" : ""} to unlock {progress.label} tier
-                </p>
+            <TierProgressBar
+              tier={user?.loyaltyTier || "none"}
+              totalOrders={user?.totalOrders || 0}
+              nextTier={user?.nextTier || null}
+              nextTierThreshold={user?.nextTierThreshold || null}
+              ordersToNextTier={user?.ordersToNextTier || 0}
+              nextTierDiscount={user?.nextTierDiscount || null}
+              currentTierDiscount={user?.currentTierDiscount || 0}
+              currentTierMin={user?.currentTierMin || 0}
+              progressPercent={user?.progressPercent || 0}
+            />
+
+            {pointsExpiry && pointsExpiry.loyaltyPoints > 0 && pointsExpiry.daysUntilExpiry !== null && pointsExpiry.daysUntilExpiry <= 30 && (
+              <div
+                className={`rounded-sm p-4 border ${
+                  pointsExpiry.daysUntilExpiry <= 7
+                    ? "border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800"
+                    : "border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800"
+                }`}
+              >
+                {pointsExpiry.daysUntilExpiry <= 7 ? (
+                  <p className="font-body text-sm text-red-700 dark:text-red-300">
+                    Points expiring soon! Use them before{" "}
+                    {pointsExpiry.pointsExpireAt
+                      ? new Date(pointsExpiry.pointsExpireAt).toLocaleDateString()
+                      : "expiry date"}
+                    .
+                  </p>
+                ) : (
+                  <p className="font-body text-sm text-amber-700 dark:text-amber-300">
+                    Your points expire in {pointsExpiry.daysUntilExpiry} days.
+                  </p>
+                )}
+                <Link to="/shop" className="font-body text-xs text-foreground underline mt-2 inline-block">
+                  Shop now
+                </Link>
               </div>
             )}
 

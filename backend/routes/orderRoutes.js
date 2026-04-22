@@ -8,9 +8,10 @@ const { finalizeOrderAsPaid } = require("../services/orderPaymentService");
 const {
   calculateDiscount,
   calculatePoints,
-  getDeliveryFee,
   getTierInfo,
 } = require("../services/loyaltyService");
+const { findAndValidateCoupon } = require("../services/couponService");
+const CartActivity = require("../models/CartActivity");
 
 // Delivery fee calculation based on method and location
 function calculateDeliveryFee(deliveryMethod, totalItems, city) {
@@ -32,12 +33,21 @@ function generateOrderId() {
 router.post("/", protect, async (req, res) => {
   try {
     const { items, shippingAddress, deliveryDetails } = req.body;
+    const couponCode = req.body?.couponCode;
+    const rawRedeemPoints = req.body?.redeemPoints;
+    const redeemPoints =
+      rawRedeemPoints === undefined || rawRedeemPoints === null || rawRedeemPoints === ""
+        ? 0
+        : Number(rawRedeemPoints);
 
     if (!items || !items.length) {
       return res.status(400).json({ error: "No items provided" });
     }
     if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.street) {
       return res.status(400).json({ error: "Shipping address is required" });
+    }
+    if (!Number.isInteger(redeemPoints) || redeemPoints < 0) {
+      return res.status(400).json({ error: "redeemPoints must be a non-negative integer" });
     }
 
     // Validate stock and build order items
@@ -71,7 +81,61 @@ router.post("/", protect, async (req, res) => {
     // Calculate loyalty discount
     const user = await User.findOne({ email: req.user.email });
     const tier = user.loyaltyTier || "none";
-    const discount = calculateDiscount(tier, subtotal);
+    const tierDiscount = calculateDiscount(tier, subtotal);
+    const maxRedeemable = Math.floor(subtotal * 0.5);
+
+    if (redeemPoints > maxRedeemable) {
+      return res.status(400).json({
+        error: `You can redeem at most ${maxRedeemable} points for this order`,
+      });
+    }
+
+    // Reserve against other pending orders to reduce multi-tab overspending.
+    const pendingRedemption = await Order.aggregate([
+      {
+        $match: {
+          userEmail: req.user.email,
+          status: "pending",
+          pointsRedemptionStatus: "pending",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalReserved: { $sum: "$redeemPointsApplied" },
+        },
+      },
+    ]);
+    const reservedPoints = pendingRedemption[0]?.totalReserved || 0;
+    const availablePoints = Math.max(0, (user.loyaltyPoints || 0) - reservedPoints);
+
+    if (redeemPoints > availablePoints) {
+      return res.status(400).json({
+        error: `Insufficient loyalty points. Available to redeem right now: ${availablePoints}`,
+      });
+    }
+
+    const pointsDiscount = redeemPoints;
+    const couponBaseTotal = Math.max(0, subtotal - tierDiscount - pointsDiscount);
+    let coupon = null;
+    let couponDiscount = 0;
+    let normalizedCouponCode = "";
+
+    if (couponCode) {
+      const couponValidation = await findAndValidateCoupon({
+        code: couponCode,
+        userId: req.user.uid,
+        orderTotal: couponBaseTotal,
+      });
+      if (!couponValidation.valid || !couponValidation.coupon) {
+        return res.status(400).json({ error: couponValidation.reason || "Invalid coupon code" });
+      }
+      coupon = couponValidation.coupon;
+      couponDiscount = couponValidation.discountAmount;
+      normalizedCouponCode = coupon.code;
+    }
+
+    const discount = tierDiscount + pointsDiscount + couponDiscount;
 
     // Calculate delivery fee based on method and location
     const method = deliveryDetails?.deliveryMethod || "standard";
@@ -79,7 +143,7 @@ router.post("/", protect, async (req, res) => {
     const deliveryFee = calculateDeliveryFee(method, totalItemCount, city);
 
     const total = subtotal - discount + deliveryFee;
-    const loyaltyPointsEarned = calculatePoints(total);
+    const loyaltyPointsEarned = await calculatePoints(total);
 
     // Decrement stock
     for (const item of orderItems) {
@@ -97,11 +161,20 @@ router.post("/", protect, async (req, res) => {
       items: orderItems,
       shippingAddress,
       subtotal,
+      tierDiscount,
+      pointsDiscount,
+      couponId: coupon ? coupon._id : null,
+      couponCode: normalizedCouponCode,
+      couponDiscount,
+      couponUsageStatus: coupon ? "pending" : "none",
       discount,
       deliveryFee,
       total,
       loyaltyPointsEarned,
       loyaltyTierAtPurchase: tier,
+      redeemPointsRequested: redeemPoints,
+      redeemPointsApplied: redeemPoints,
+      pointsRedemptionStatus: redeemPoints > 0 ? "pending" : "none",
       status: "pending",
       expiresAt: new Date(Date.now() + 15 * 60 * 1000),
       deliveryDetails: deliveryDetails
@@ -122,6 +195,8 @@ router.post("/", protect, async (req, res) => {
             scheduledTimeSlot: "any",
           },
     });
+
+    await CartActivity.deleteOne({ userId: req.user.uid });
 
     res.status(201).json(order);
   } catch (err) {
@@ -168,6 +243,10 @@ router.post("/:orderId/pay", protect, async (req, res) => {
     });
   } catch (err) {
     console.error("Pay order error:", err);
+    const message = String(err?.message || "").toLowerCase();
+    if (message.includes("insufficient loyalty points") || message.includes("coupon can no longer be applied")) {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(500).json({ error: "Payment failed" });
   }
 });
@@ -243,9 +322,15 @@ router.get("/:orderId/invoice", protect, async (req, res) => {
         status: order.status,
         items: order.items,
         subtotal: order.subtotal,
+        tierDiscount: order.tierDiscount || 0,
+        pointsDiscount: order.pointsDiscount || 0,
+        couponDiscount: order.couponDiscount || 0,
+        couponCode: order.couponCode || "",
+        redeemPointsApplied: order.redeemPointsApplied || 0,
         discount: order.discount,
         deliveryFee: order.deliveryFee,
         total: order.total,
+        loyaltyTierAtPurchase: order.loyaltyTierAtPurchase,
       },
       customer: {
         email: order.userEmail,

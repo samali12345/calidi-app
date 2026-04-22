@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Truck, Lock, Award, Clock, Package, Calendar } from "lucide-react";
+import { Truck, Lock, Award, Clock, Package, Calendar, Ticket, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import LoyaltyBadge from "@/components/LoyaltyBadge";
 import type { Order, DeliveryMethod } from "@/lib/types";
@@ -44,6 +44,31 @@ export default function Checkout() {
   const [scheduledTimeSlot, setScheduledTimeSlot] = useState("any");
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [sameRecipient, setSameRecipient] = useState(true);
+  const [usePoints, setUsePoints] = useState(false);
+  const [redeemPointsInput, setRedeemPointsInput] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [couponSuccess, setCouponSuccess] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountType: "percentage" | "fixed";
+    discountValue: number;
+  } | null>(null);
+  const [doublePoints, setDoublePoints] = useState<{ active: boolean; endsAt: string | null }>({
+    active: false,
+    endsAt: null,
+  });
+
+  useEffect(() => {
+    apiFetch<{ active: boolean; endsAt?: string }>("/settings/double-points")
+      .then((status) => {
+        setDoublePoints({ active: !!status.active, endsAt: status.endsAt || null });
+      })
+      .catch(() => {
+        setDoublePoints({ active: false, endsAt: null });
+      });
+  }, []);
 
   // Fetch delivery methods when city changes
   useEffect(() => {
@@ -86,8 +111,41 @@ export default function Checkout() {
   // Calculate loyalty discount preview
   const loyaltyTier = user?.loyaltyTier || "none";
   const discountPercent = loyaltyTier === "gold" ? 15 : loyaltyTier === "silver" ? 10 : 0;
-  const discountAmount = Math.round(totalPrice * (discountPercent / 100));
+  const tierDiscount = Math.round(totalPrice * (discountPercent / 100));
+  const loyaltyPointsBalance = user?.loyaltyPoints || 0;
+  const maxRedeemableBySubtotal = Math.floor(totalPrice * 0.5);
+  const maxRedeemablePoints = Math.max(0, Math.min(loyaltyPointsBalance, maxRedeemableBySubtotal));
+  const parsedRedeemPoints = Number.parseInt(redeemPointsInput || "0", 10);
+  const redeemPoints = usePoints
+    ? Math.min(
+        Math.max(Number.isNaN(parsedRedeemPoints) ? 0 : parsedRedeemPoints, 0),
+        maxRedeemablePoints
+      )
+    : 0;
+  const pointsDiscount = redeemPoints;
+  const loyaltyDiscountAmount = tierDiscount + pointsDiscount;
+  const couponBaseTotal = Math.max(0, totalPrice - loyaltyDiscountAmount);
+  const couponDiscount = appliedCoupon
+    ? Math.min(
+        couponBaseTotal,
+        appliedCoupon.discountType === "percentage"
+          ? Math.round((couponBaseTotal * appliedCoupon.discountValue) / 100)
+          : Math.round(appliedCoupon.discountValue)
+      )
+    : 0;
+  const discountAmount = loyaltyDiscountAmount + couponDiscount;
   const orderTotal = totalPrice - discountAmount + deliveryFee;
+  const projectedBasePoints = Math.floor(orderTotal / 100);
+  const projectedPoints = doublePoints.active ? projectedBasePoints * 2 : projectedBasePoints;
+
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    if (couponBaseTotal <= 0) {
+      setCouponSuccess("");
+      setAppliedCoupon(null);
+      setCouponError("Coupon removed because order value is too low after other discounts.");
+    }
+  }, [appliedCoupon, couponBaseTotal]);
 
   // Min date for scheduling (tomorrow)
   const tomorrow = new Date();
@@ -141,6 +199,8 @@ export default function Checkout() {
         token,
         body: {
           items: orderItems,
+          redeemPoints,
+          couponCode: appliedCoupon?.code || undefined,
           shippingAddress: address,
           deliveryDetails: {
             recipientName: sameRecipient ? address.fullName : recipientName,
@@ -160,6 +220,57 @@ export default function Checkout() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!token) return;
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError("Enter a promo code to apply.");
+      setCouponSuccess("");
+      return;
+    }
+
+    setApplyingCoupon(true);
+    setCouponError("");
+    setCouponSuccess("");
+
+    try {
+      const data = await apiFetch<{
+        valid: boolean;
+        code: string;
+        discountType: "percentage" | "fixed";
+        discountValue: number;
+        discountAmount: number;
+      }>("/coupons/validate", {
+        method: "POST",
+        token,
+        body: {
+          code,
+          orderTotal: couponBaseTotal,
+        },
+      });
+
+      setAppliedCoupon({
+        code: data.code,
+        discountType: data.discountType,
+        discountValue: data.discountValue,
+      });
+      setCouponInput(data.code);
+      setCouponSuccess(`Code applied! You save LKR ${data.discountAmount.toLocaleString()}`);
+    } catch (err: any) {
+      setAppliedCoupon(null);
+      setCouponError(err.message || "Invalid promo code");
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+    setCouponSuccess("");
   };
 
   return (
@@ -381,6 +492,18 @@ export default function Checkout() {
           {/* Right — Order Summary */}
           <aside className="lg:col-span-2 space-y-6">
             <h2 className="font-display text-lg tracking-wider text-foreground">Order Summary</h2>
+            {doublePoints.active && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-sm p-3">
+                <p className="font-body text-sm text-amber-700 dark:text-amber-300 font-medium">
+                  Double Points Weekend! You'll earn {projectedPoints.toLocaleString()} points on this order
+                </p>
+                {doublePoints.endsAt && (
+                  <p className="font-body text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Ends {new Date(doublePoints.endsAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Loyalty Discount Banner */}
             {discountPercent > 0 && (
@@ -391,9 +514,101 @@ export default function Checkout() {
                     <LoyaltyBadge tier={loyaltyTier} size="sm" /> {discountPercent}% discount applied!
                   </p>
                   <p className="font-body text-xs text-green-600 dark:text-green-500">
-                    You save LKR {discountAmount.toLocaleString()}
+                    You save LKR {loyaltyDiscountAmount.toLocaleString()}
                   </p>
                 </div>
+              </div>
+            )}
+
+            {user && loyaltyPointsBalance > 0 && (
+              <div className="border border-border rounded-sm p-4 space-y-3">
+                <p className="font-body text-sm text-foreground font-medium">Use Loyalty Points</p>
+                <p className="font-body text-xs text-muted-foreground">
+                  You have {loyaltyPointsBalance.toLocaleString()} points = LKR {loyaltyPointsBalance.toLocaleString()} value
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={usePoints}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setUsePoints(checked);
+                      if (checked && !redeemPointsInput) {
+                        setRedeemPointsInput(String(maxRedeemablePoints));
+                      }
+                    }}
+                    className="rounded border-border"
+                  />
+                  <span className="font-body text-sm text-foreground">
+                    Redeem points for checkout discount
+                  </span>
+                </label>
+                <div className="space-y-2">
+                  <Label className="font-body text-xs uppercase tracking-widest text-muted-foreground">
+                    Points to Redeem
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={maxRedeemablePoints}
+                    step={1}
+                    value={redeemPointsInput}
+                    disabled={!usePoints}
+                    onChange={(e) => setRedeemPointsInput(e.target.value.replace(/[^\d]/g, ""))}
+                    className="rounded-sm font-body"
+                  />
+                  <p className="font-body text-xs text-muted-foreground">
+                    Max this order: {maxRedeemablePoints.toLocaleString()} points (50% of subtotal cap)
+                  </p>
+                  {usePoints && redeemPoints > 0 && (
+                    <p className="font-body text-xs text-green-600">
+                      Redeem {redeemPoints.toLocaleString()} points for LKR {pointsDiscount.toLocaleString()} off
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {user && (
+              <div className="border border-border rounded-sm p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Ticket size={16} className="text-muted-foreground" />
+                  <p className="font-body text-sm text-foreground font-medium">Promo Code</p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="Enter promo code"
+                    className="rounded-sm font-body"
+                    disabled={!!appliedCoupon}
+                  />
+                  {!appliedCoupon ? (
+                    <Button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={applyingCoupon || couponBaseTotal <= 0}
+                      className="rounded-sm font-body text-xs uppercase tracking-wider"
+                    >
+                      {applyingCoupon ? "Applying..." : "Apply"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRemoveCoupon}
+                      className="rounded-sm"
+                    >
+                      <X size={14} />
+                    </Button>
+                  )}
+                </div>
+                {couponSuccess && (
+                  <p className="font-body text-xs text-green-600">✓ {couponSuccess}</p>
+                )}
+                {couponError && (
+                  <p className="font-body text-xs text-destructive">{couponError}</p>
+                )}
               </div>
             )}
 
@@ -417,10 +632,22 @@ export default function Checkout() {
                 <span>Subtotal ({totalItems} item{totalItems > 1 ? "s" : ""})</span>
                 <span>LKR {totalPrice.toLocaleString()}</span>
               </div>
-              {discountAmount > 0 && (
+              {tierDiscount > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Loyalty Discount ({discountPercent}%)</span>
-                  <span>-LKR {discountAmount.toLocaleString()}</span>
+                  <span>Loyalty Tier Discount ({discountPercent}%)</span>
+                  <span>-LKR {tierDiscount.toLocaleString()}</span>
+                </div>
+              )}
+              {pointsDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Points Redemption ({redeemPoints} pts)</span>
+                  <span>-LKR {pointsDiscount.toLocaleString()}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Promo Code ({appliedCoupon?.code})</span>
+                  <span>-LKR {couponDiscount.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-muted-foreground">
