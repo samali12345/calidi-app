@@ -15,6 +15,12 @@ const productSchema = new mongoose.Schema(
     img: { type: String, default: "" },
     image: { type: String, default: "" },
     category: { type: String, default: "" },
+    outfitSlot: {
+      type: String,
+      enum: ["top", "bottom", "dress", "accessory", "outerwear"],
+      default: "top",
+    },
+    subCategory: { type: String, default: "Top" },
     feature_index: { type: Number, default: null },
     stock: { type: Number, default: 50 },
     lowStockThreshold: { type: Number, default: 10 },
