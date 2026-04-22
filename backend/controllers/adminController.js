@@ -6,6 +6,13 @@ const mongoose = require("mongoose");
 const { broadcastDeliveryUpdate } = require("../services/deliveryRealtime");
 const { sendDeliveryStatusPush } = require("../services/pushNotifications");
 const { indexSingleProduct } = require("../services/recommendationIndexer");
+const {
+  finalizeOrderAsPaid,
+  refundRedeemedPointsForOrder,
+  refundCouponForOrder,
+} = require("../services/orderPaymentService");
+const Coupon = require("../models/Coupon");
+const { upsertDoublePointsSetting, getDoublePointsStatus } = require("../services/doublePointsService");
 
 const TERMINAL_DELIVERY_STATUSES = ["delivered", "failed", "returned"];
 const PRODUCT_HAS_IMAGE_FILTER = {
@@ -14,12 +21,6 @@ const PRODUCT_HAS_IMAGE_FILTER = {
     { img: { $exists: true, $ne: "" } },
   ],
 };
-
-function generateDeliveryId() {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `DEL-${ts}-${rand}`;
-}
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -295,9 +296,26 @@ exports.updateOrderStatus = async (req, res) => {
 
     const order = await Order.findOne({ orderId: req.params.orderId });
     if (!order) return res.status(404).json({ error: "Order not found" });
+    const previousStatus = order.status;
+
+    if (status === previousStatus) {
+      return res.json(order);
+    }
+
+    if (previousStatus === "paid" && status === "pending") {
+      return res.status(400).json({ error: "Cannot move a paid order back to pending" });
+    }
+
+    if (status === "paid") {
+      const { order: paidOrder } = await finalizeOrderAsPaid(order, {
+        paymentMethod: order.paymentMethod || "admin-manual",
+        paidAt: new Date(),
+      });
+      return res.json(paidOrder);
+    }
 
     // If cancelling or expiring, restore stock
-    if ((status === "cancelled" || status === "expired") && order.status === "pending") {
+    if ((status === "cancelled" || status === "expired") && previousStatus === "pending") {
       for (const item of order.items) {
         await Product.updateOne(
           { p_id: item.productId },
@@ -307,51 +325,169 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     order.status = status;
-    if (status === "paid") {
-      order.paidAt = new Date();
 
-      // Auto-generate delivery request (same logic used in order payment flow)
-      if (!order.deliveryId) {
-        const dd = order.deliveryDetails || {};
-        const deliveryId = generateDeliveryId();
-        await Delivery.create({
-          deliveryId,
-          orderId: order.orderId,
-          userId: order.userId,
-          userEmail: order.userEmail,
-          recipientName: dd.recipientName || order.shippingAddress.fullName,
-          contactNumber: dd.contactNumber || "",
-          deliveryAddress: {
-            street: order.shippingAddress.street,
-            city: order.shippingAddress.city,
-            state: order.shippingAddress.state,
-            zip: order.shippingAddress.zip,
-            country: order.shippingAddress.country,
-          },
-          deliveryNotes: dd.deliveryNotes || "",
-          deliveryMethod: dd.deliveryMethod || "standard",
-          deliveryFee: order.deliveryFee,
-          scheduledDate: dd.scheduledDate || null,
-          scheduledTimeSlot: dd.scheduledTimeSlot || "any",
-          status: "pending_pickup",
-          statusHistory: [
-            {
-              status: "pending_pickup",
-              timestamp: new Date(),
-              note: "Order confirmed, awaiting pickup",
-            },
-          ],
-          itemCount: order.items.reduce((s, i) => s + i.quantity, 0),
-          orderTotal: order.total,
-        });
-        order.deliveryId = deliveryId;
-      }
+    if ((status === "cancelled" || status === "expired") && previousStatus === "paid") {
+      await refundRedeemedPointsForOrder(order);
+      await refundCouponForOrder(order);
     }
+
     await order.save();
 
     res.json(order);
   } catch (err) {
+    const message = String(err?.message || "").toLowerCase();
+    if (message.includes("insufficient loyalty points") || message.includes("coupon can no longer be applied")) {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(500).json({ error: "Failed to update order status" });
+  }
+};
+
+// POST /api/admin/coupons
+exports.createCoupon = async (req, res) => {
+  try {
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    const discountType = String(req.body?.discountType || "").trim();
+    const discountValue = Number(req.body?.discountValue);
+    const minOrderValue = Number(req.body?.minOrderValue || 0);
+    const maxUsesRaw = req.body?.maxUses;
+    const maxUses = maxUsesRaw === "" || maxUsesRaw === null || maxUsesRaw === undefined
+      ? null
+      : Number(maxUsesRaw);
+    const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+    const isActive = req.body?.isActive === undefined ? true : !!req.body.isActive;
+
+    if (!code) return res.status(400).json({ error: "code is required" });
+    if (!["percentage", "fixed"].includes(discountType)) {
+      return res.status(400).json({ error: "discountType must be percentage or fixed" });
+    }
+    if (!Number.isFinite(discountValue) || discountValue <= 0) {
+      return res.status(400).json({ error: "discountValue must be greater than 0" });
+    }
+    if (!Number.isFinite(minOrderValue) || minOrderValue < 0) {
+      return res.status(400).json({ error: "minOrderValue must be 0 or greater" });
+    }
+    if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses <= 0)) {
+      return res.status(400).json({ error: "maxUses must be a positive integer or null" });
+    }
+    if (expiresAt && Number.isNaN(expiresAt.getTime())) {
+      return res.status(400).json({ error: "expiresAt must be a valid date" });
+    }
+
+    const coupon = await Coupon.create({
+      code,
+      discountType,
+      discountValue,
+      minOrderValue,
+      maxUses,
+      expiresAt,
+      isActive,
+    });
+
+    return res.status(201).json(coupon);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).json({ error: "Coupon code already exists" });
+    }
+    return res.status(500).json({ error: "Failed to create coupon" });
+  }
+};
+
+// GET /api/admin/coupons
+exports.getCoupons = async (_req, res) => {
+  try {
+    const coupons = await Coupon.find({}).sort({ createdAt: -1 });
+    return res.json(coupons);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch coupons" });
+  }
+};
+
+// PUT /api/admin/coupons/:id
+exports.updateCoupon = async (req, res) => {
+  try {
+    const updates = {};
+    const allowed = ["discountType", "discountValue", "minOrderValue", "maxUses", "expiresAt", "isActive"];
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+    if (updates.discountType !== undefined && !["percentage", "fixed"].includes(String(updates.discountType))) {
+      return res.status(400).json({ error: "discountType must be percentage or fixed" });
+    }
+    if (updates.discountValue !== undefined) {
+      const value = Number(updates.discountValue);
+      if (!Number.isFinite(value) || value <= 0) {
+        return res.status(400).json({ error: "discountValue must be greater than 0" });
+      }
+      updates.discountValue = value;
+    }
+    if (updates.minOrderValue !== undefined) {
+      const value = Number(updates.minOrderValue);
+      if (!Number.isFinite(value) || value < 0) {
+        return res.status(400).json({ error: "minOrderValue must be 0 or greater" });
+      }
+      updates.minOrderValue = value;
+    }
+    if (updates.maxUses !== undefined) {
+      if (updates.maxUses === "" || updates.maxUses === null) {
+        updates.maxUses = null;
+      } else {
+        const value = Number(updates.maxUses);
+        if (!Number.isInteger(value) || value <= 0) {
+          return res.status(400).json({ error: "maxUses must be a positive integer or null" });
+        }
+        updates.maxUses = value;
+      }
+    }
+    if (updates.expiresAt !== undefined) {
+      updates.expiresAt = updates.expiresAt ? new Date(updates.expiresAt) : null;
+      if (updates.expiresAt && Number.isNaN(updates.expiresAt.getTime())) {
+        return res.status(400).json({ error: "expiresAt must be a valid date" });
+      }
+    }
+
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, updates, { new: true });
+    if (!coupon) return res.status(404).json({ error: "Coupon not found" });
+    return res.json(coupon);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to update coupon" });
+  }
+};
+
+// DELETE /api/admin/coupons/:id
+exports.deleteCoupon = async (req, res) => {
+  try {
+    const deleted = await Coupon.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Coupon not found" });
+    return res.json({ message: "Coupon deleted" });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to delete coupon" });
+  }
+};
+
+// PUT /api/admin/settings/double-points
+exports.updateDoublePointsSetting = async (req, res) => {
+  try {
+    const enabled = !!req.body?.enabled;
+    const endsAt = req.body?.endsAt || null;
+
+    const status = await upsertDoublePointsSetting({ enabled, endsAt });
+    return res.json(status.active ? { active: true, endsAt: status.endsAt } : { active: false });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Failed to update double points setting" });
+  }
+};
+
+// GET /api/admin/settings/double-points
+exports.getDoublePointsSetting = async (_req, res) => {
+  try {
+    const status = await getDoublePointsStatus();
+    return res.json(status.active ? { active: true, endsAt: status.endsAt } : { active: false });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch double points setting" });
   }
 };
 
