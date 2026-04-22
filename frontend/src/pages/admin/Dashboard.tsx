@@ -5,6 +5,10 @@ import { Link } from "react-router-dom";
 import { DollarSign, ShoppingCart, Package, AlertTriangle } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { DashboardStats, SalesDataPoint, Order } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const { token } = useAuth();
@@ -12,6 +16,9 @@ export default function Dashboard() {
   const [salesData, setSalesData] = useState<SalesDataPoint[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [lowStock, setLowStock] = useState<any[]>([]);
+  const [doublePointsActive, setDoublePointsActive] = useState(false);
+  const [doublePointsEndsAt, setDoublePointsEndsAt] = useState("");
+  const [savingDoublePoints, setSavingDoublePoints] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -20,7 +27,40 @@ export default function Dashboard() {
     apiFetch<SalesDataPoint[]>("/admin/dashboard/sales?period=30", { token }).then(setSalesData).catch(() => {});
     apiFetch<{ orders: Order[] }>("/admin/orders?limit=10", { token }).then((d) => setRecentOrders(d.orders)).catch(() => {});
     apiFetch<any[]>("/admin/products/low-stock", { token }).then(setLowStock).catch(() => {});
+    apiFetch<{ active: boolean; endsAt?: string }>("/admin/settings/double-points", { token })
+      .then((status) => {
+        setDoublePointsActive(!!status.active);
+        if (status.endsAt) {
+          const local = new Date(status.endsAt);
+          local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+          setDoublePointsEndsAt(local.toISOString().slice(0, 16));
+        }
+      })
+      .catch(() => {});
   }, [token]);
+
+  const saveDoublePoints = async (enabled: boolean) => {
+    if (!token) return;
+    if (enabled && !doublePointsEndsAt) {
+      toast.error("Please select an end date/time");
+      return;
+    }
+    setSavingDoublePoints(true);
+    try {
+      const endsAtIso = doublePointsEndsAt ? new Date(doublePointsEndsAt).toISOString() : null;
+      const data = await apiFetch<{ active: boolean; endsAt?: string }>("/admin/settings/double-points", {
+        method: "PUT",
+        token,
+        body: { enabled, endsAt: endsAtIso },
+      });
+      setDoublePointsActive(!!data.active);
+      toast.success(enabled ? "Double points enabled" : "Double points disabled");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update double points");
+    } finally {
+      setSavingDoublePoints(false);
+    }
+  };
 
   const statCards = [
     { label: "Total Revenue", value: stats ? `LKR ${stats.totalRevenue.toLocaleString()}` : "...", icon: DollarSign, color: "text-green-600" },
@@ -54,6 +94,39 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      <div className="bg-secondary/30 border border-border rounded-sm p-5 space-y-4">
+        <h2 className="font-display text-lg tracking-wider text-foreground">Double Points Event</h2>
+        <p className="font-body text-sm text-muted-foreground">
+          Status: {doublePointsActive ? "Active" : "Inactive"}
+        </p>
+        <div className="space-y-2 max-w-sm">
+          <Label className="font-body text-xs uppercase tracking-widest text-muted-foreground">Ends At</Label>
+          <Input
+            type="datetime-local"
+            value={doublePointsEndsAt}
+            onChange={(e) => setDoublePointsEndsAt(e.target.value)}
+            className="rounded-sm font-body"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => saveDoublePoints(true)}
+            disabled={savingDoublePoints}
+            className="rounded-sm font-body text-xs uppercase tracking-wider"
+          >
+            {savingDoublePoints ? "Saving..." : "Enable"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => saveDoublePoints(false)}
+            disabled={savingDoublePoints}
+            className="rounded-sm font-body text-xs uppercase tracking-wider"
+          >
+            Disable
+          </Button>
+        </div>
       </div>
 
       {/* Sales Chart */}
