@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Recommendations from "@/components/Recommendations";
 import CompleteLook from "@/components/CompleteLook";
+import OutfitBuilder from "@/components/OutfitBuilder";
 import type { Product } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -241,6 +242,7 @@ export default function ProductDetail() {
 
       {/* AI Recommendation Section */}
       <Recommendations currentProductId={product.p_id} />
+      <OutfitBuilder sourceProduct={product} />
       <CompleteLook currentProductId={product.id} />
     </div>
   );

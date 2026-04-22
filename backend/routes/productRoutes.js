@@ -229,6 +229,68 @@ router.get('/complete-look/:productId', async (req, res) => {
   }
 });
 
+// Route for: GET /api/products/outfit/:productId
+router.get('/outfit/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const topN = Number(req.query.top_n || req.query.top || 4);
+    const engine = String(req.query.engine || "internal").toLowerCase();
+    const pythonEndpoint =
+      engine === "api"
+        ? `/recommend/outfit-api/${encodeURIComponent(String(productId))}`
+        : `/recommend/outfit/${encodeURIComponent(String(productId))}`;
+
+    const pythonRes = await axios.get(
+      `${PYTHON_SERVICE_URL}${pythonEndpoint}`,
+      { params: { top_n: topN } }
+    );
+
+    const recs = Array.isArray(pythonRes.data) ? pythonRes.data : [];
+    const enriched = [];
+
+    for (let i = 0; i < recs.length; i += 1) {
+      const rec = recs[i] || {};
+      const recId = rec?.p_id;
+      if (recId === undefined || recId === null) continue;
+
+      let pIdNum = Number(recId);
+      if (!Number.isFinite(pIdNum)) continue;
+
+      const product = await mongoose.connection.db.collection('products').findOne({ p_id: pIdNum });
+      if (!product) continue;
+
+      const normalizedProduct = {
+        ...product,
+        id: String(product._id),
+        p_id: product.p_id,
+        name: product.name || "Unknown",
+        price: Number(product.price ?? 0),
+        category: product.category || "",
+        image: product.image_id ? `${IMAGE_BASE}/${product.p_id}` : (product.img || undefined),
+        description: stripHtml(product.description || ""),
+        sizes: ["S", "M", "L", "XL", "XXL"],
+        stock: product.stock ?? 50,
+      };
+
+      enriched.push({
+        role: rec.role || (i === 0 ? "Pair with" : "Complete with"),
+        category: rec.outfit_group || rec.category || normalizedProduct.category || "",
+        reason: rec.reason || "",
+        product: normalizedProduct,
+      });
+    }
+
+    return res.json(enriched);
+  } catch (err) {
+    const status = err?.response?.status;
+    if (status === 404) {
+      return res.json([]);
+    }
+    console.error("Bridge to Python (outfit builder) failed:", err.message);
+    return res.json([]);
+  }
+});
+
 // Route for: GET /api/products/recommendations/user/:userId
 router.get('/recommendations/user/:userId', async (req, res) => {
   try {

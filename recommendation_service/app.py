@@ -40,6 +40,9 @@ BACKEND_ENV_PATH = PROJECT_ROOT / "backend" / ".env"
 load_dotenv(BACKEND_ENV_PATH)
 MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
 MONGODB_DB_NAME = os.getenv("DB_NAME", "").strip()
+STYLE_API_URL = os.getenv("STYLE_API_URL", "").strip()
+STYLE_API_KEY = os.getenv("STYLE_API_KEY", "").strip()
+STYLE_API_TIMEOUT_SECONDS = max(1, int(os.getenv("STYLE_API_TIMEOUT_SECONDS", "8")))
 
 BASE_LIMIT = int(os.getenv("RECOMMENDER_BASE_LIMIT", "500"))
 TEXT_COLS = ["name", "description", "p_attributes", "brand", "colour"]
@@ -86,6 +89,143 @@ def normalize_text_value(value: Any) -> str:
 
 def build_combined_text(row: Dict[str, Any]) -> str:
     return " ".join(normalize_text_value(row.get(col, "")) for col in TEXT_COLS).strip()
+
+
+def infer_outfit_group(product_doc: Dict[str, Any]) -> str:
+    name = normalize_text_value(product_doc.get("name", ""))
+    description = normalize_text_value(product_doc.get("description", ""))
+    category = normalize_text_value(product_doc.get("category", ""))
+    attrs = normalize_text_value(product_doc.get("p_attributes", ""))
+    text = f"{name} {description} {category} {attrs}"
+
+    def has_any(keywords: List[str]) -> bool:
+        return any(k in text for k in keywords)
+
+    footwear_keys = [
+        "shoe", "shoes", "sneaker", "heel", "heels", "sandals", "slipper",
+        "boot", "boots", "loafer", "flats", "flip flop",
+    ]
+    accessory_keys = [
+        "bag", "handbag", "purse", "belt", "earring", "necklace", "bracelet",
+        "ring", "scarf", "dupatta", "stole", "clutch", "wallet", "cap", "hat",
+    ]
+    outerwear_keys = [
+        "jacket", "blazer", "coat", "hoodie", "sweatshirt", "shrug", "cardigan",
+    ]
+    dress_keys = [
+        "dress", "gown", "anarkali", "jumpsuit",
+    ]
+    bottom_keys = [
+        "jean", "jeans", "trouser", "trousers", "pant", "pants", "shorts",
+        "skirt", "palazzo", "bottom", "legging", "leggings",
+    ]
+    top_keys = [
+        "top", "shirt", "t-shirt", "tee", "blouse", "kurti", "kurta", "tunic",
+        "bralette", "crop top",
+    ]
+    full_ethnic_set_keys = [
+        "kurta set", "set", "co-ord", "co ord", "three piece", "2 piece", "two piece",
+    ]
+
+    if has_any(footwear_keys):
+        return "Footwear"
+    if has_any(accessory_keys):
+        return "Accessories"
+    if has_any(outerwear_keys):
+        return "Outerwear"
+    if has_any(dress_keys):
+        return "Dress"
+    if has_any(full_ethnic_set_keys):
+        return "Ethnic Set"
+    if has_any(bottom_keys):
+        return "Bottom"
+    if has_any(top_keys):
+        return "Top"
+    if "ethnic" in category:
+        return "Ethnic Set"
+    return "Other"
+
+
+def build_product_text_blob(product_doc: Dict[str, Any]) -> str:
+    return " ".join(
+        [
+            normalize_text_value(product_doc.get("name", "")),
+            normalize_text_value(product_doc.get("description", "")),
+            normalize_text_value(product_doc.get("category", "")),
+            normalize_text_value(product_doc.get("p_attributes", "")),
+            normalize_text_value(product_doc.get("brand", "")),
+            normalize_text_value(product_doc.get("colour", "")),
+        ]
+    ).strip()
+
+
+def parse_style_slots(api_payload: Any, source_group: str) -> List[Dict[str, Any]]:
+    slots: List[Dict[str, Any]] = []
+
+    if isinstance(api_payload, dict):
+        raw_slots = api_payload.get("slots")
+        if isinstance(raw_slots, list):
+            for item in raw_slots:
+                if not isinstance(item, dict):
+                    continue
+                group = str(item.get("group", "")).strip()
+                if not group or (source_group and group == source_group):
+                    continue
+                keywords_raw = item.get("keywords", [])
+                keywords = []
+                if isinstance(keywords_raw, list):
+                    keywords = [normalize_text_value(k) for k in keywords_raw if str(k).strip()]
+                role = str(item.get("role", "")).strip()
+                slots.append({"group": group, "keywords": keywords, "role": role})
+
+        raw_groups = api_payload.get("groups")
+        if isinstance(raw_groups, list):
+            for group in raw_groups:
+                group_name = str(group).strip()
+                if not group_name or (source_group and group_name == source_group):
+                    continue
+                slots.append({"group": group_name, "keywords": [], "role": ""})
+
+    dedup: Dict[str, Dict[str, Any]] = {}
+    for slot in slots:
+        group_name = str(slot.get("group", "")).strip()
+        if not group_name:
+            continue
+        if group_name not in dedup:
+            dedup[group_name] = slot
+    return list(dedup.values())
+
+
+def call_external_style_api(source_doc: Dict[str, Any], top_n: int, source_group: str) -> List[Dict[str, Any]]:
+    if not STYLE_API_URL:
+        return []
+
+    payload = {
+        "source_product": {
+            "name": str(source_doc.get("name", "") or ""),
+            "category": str(source_doc.get("category", "") or ""),
+            "description": str(source_doc.get("description", "") or ""),
+            "attributes": source_doc.get("p_attributes", ""),
+            "brand": str(source_doc.get("brand", "") or ""),
+            "colour": str(source_doc.get("colour", "") or ""),
+            "outfit_group": source_group,
+        },
+        "max_slots": int(max(top_n, 1)),
+    }
+    body = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if STYLE_API_KEY:
+        headers["Authorization"] = f"Bearer {STYLE_API_KEY}"
+
+    req = urllib.request.Request(STYLE_API_URL, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=STYLE_API_TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8", errors="ignore")
+        parsed = json.loads(raw) if raw else {}
+    except Exception:
+        return []
+
+    return parse_style_slots(parsed, source_group)
 
 
 def ensure_parent_dir(path: Path) -> None:
@@ -702,6 +842,238 @@ async def recommend_complete_look(product_id: str, top_n: int = 4):
     if not results:
         return fallback_complete_look_random(source_category, top_n)
     return results
+
+
+@app.get("/recommend/outfit/{product_id}")
+async def recommend_outfit_builder(product_id: str, top_n: int = 4):
+    db = get_mongo_db()
+
+    source_doc = None
+    if ObjectId.is_valid(product_id):
+        source_doc = db["products"].find_one({"_id": ObjectId(product_id)})
+    if source_doc is None:
+        try:
+            source_p_id = int(float(product_id))
+            source_doc = db["products"].find_one({"p_id": source_p_id})
+        except Exception:
+            source_doc = None
+
+    if source_doc is None:
+        return []
+
+    source_category = str(source_doc.get("category", "") or "").strip()
+    source_group = infer_outfit_group(source_doc)
+    source_pid_raw = source_doc.get("p_id")
+    if source_pid_raw is None:
+        return []
+
+    try:
+        source_pid = str(int(float(source_pid_raw)))
+    except Exception:
+        source_pid = str(source_pid_raw).strip()
+
+    if not source_pid or source_pid not in p_id_to_idx:
+        return []
+
+    source_idx = p_id_to_idx[source_pid]
+    source_vec = runtime_matrix[source_idx]
+    sim_scores = cosine_similarity(source_vec, runtime_matrix).flatten()
+    ranked_indices = np.argsort(sim_scores)[::-1]
+
+    # Gather the top similar candidates first, then keep one highest-similarity item per category.
+    top_candidate_ids: List[str] = []
+    for idx in ranked_indices:
+        idx = int(idx)
+        if idx == source_idx:
+            continue
+        meta = rows_meta[idx] if idx < len(rows_meta) else {}
+        rec_id = str(meta.get("p_id", "")).strip()
+        if not rec_id:
+            continue
+        top_candidate_ids.append(rec_id)
+        if len(top_candidate_ids) >= 30:
+            break
+
+    if not top_candidate_ids:
+        return []
+
+    numeric_ids: List[int] = []
+    for pid in top_candidate_ids:
+        try:
+            numeric_ids.append(int(float(pid)))
+        except Exception:
+            continue
+    if not numeric_ids:
+        return []
+
+    docs = list(
+        db["products"].find(
+            {"p_id": {"$in": numeric_ids}},
+            {"p_id": 1, "category": 1, "name": 1, "description": 1, "p_attributes": 1},
+        )
+    )
+    candidate_meta_map: Dict[str, Dict[str, str]] = {}
+    for doc in docs:
+        p_id = doc.get("p_id")
+        if p_id is None:
+            continue
+        try:
+            pid_str = str(int(float(p_id)))
+        except Exception:
+            pid_str = str(p_id).strip()
+        if not pid_str:
+            continue
+        cat = str(doc.get("category", "") or "").strip()
+        group = infer_outfit_group(doc)
+        candidate_meta_map[pid_str] = {"category": cat, "outfit_group": group}
+
+    picked_by_group: Dict[str, Dict[str, Any]] = {}
+    for pid in top_candidate_ids:
+        meta = candidate_meta_map.get(pid)
+        if not meta:
+            continue
+        cat = meta.get("category", "").strip()
+        group = meta.get("outfit_group", "Other").strip() or "Other"
+        if not cat:
+            continue
+        if source_group and group == source_group:
+            continue
+        if group in picked_by_group:
+            continue
+        picked_by_group[group] = {
+            "p_id": pid,
+            "category": cat,
+            "outfit_group": group,
+        }
+        if len(picked_by_group) >= max(top_n, 1):
+            break
+
+    return list(picked_by_group.values())[: max(top_n, 1)]
+
+
+@app.get("/recommend/outfit-api/{product_id}")
+async def recommend_outfit_builder_from_api(product_id: str, top_n: int = 4):
+    db = get_mongo_db()
+
+    source_doc = None
+    if ObjectId.is_valid(product_id):
+        source_doc = db["products"].find_one({"_id": ObjectId(product_id)})
+    if source_doc is None:
+        try:
+            source_p_id = int(float(product_id))
+            source_doc = db["products"].find_one({"p_id": source_p_id})
+        except Exception:
+            source_doc = None
+
+    if source_doc is None:
+        return []
+
+    source_pid_raw = source_doc.get("p_id")
+    if source_pid_raw is None:
+        return []
+
+    try:
+        source_pid = str(int(float(source_pid_raw)))
+    except Exception:
+        source_pid = str(source_pid_raw).strip()
+    if not source_pid or source_pid not in p_id_to_idx:
+        return []
+
+    source_group = infer_outfit_group(source_doc)
+    style_slots = call_external_style_api(source_doc, top_n=top_n, source_group=source_group)
+    if not style_slots:
+        return []
+
+    source_idx = p_id_to_idx[source_pid]
+    source_vec = runtime_matrix[source_idx]
+    sim_scores = cosine_similarity(source_vec, runtime_matrix).flatten()
+    ranked_indices = np.argsort(sim_scores)[::-1]
+
+    candidates: List[Dict[str, Any]] = []
+    for idx in ranked_indices:
+        idx = int(idx)
+        if idx == source_idx:
+            continue
+        meta = rows_meta[idx] if idx < len(rows_meta) else {}
+        pid = str(meta.get("p_id", "")).strip()
+        if not pid:
+            continue
+        try:
+            pid_int = int(float(pid))
+        except Exception:
+            continue
+        candidates.append({"p_id": pid, "p_id_int": pid_int, "similarity": float(sim_scores[idx])})
+        if len(candidates) >= 120:
+            break
+    if not candidates:
+        return []
+
+    docs = list(
+        db["products"].find(
+            {"p_id": {"$in": [c["p_id_int"] for c in candidates]}},
+            {"p_id": 1, "category": 1, "name": 1, "description": 1, "p_attributes": 1, "brand": 1, "colour": 1},
+        )
+    )
+    doc_map: Dict[str, Dict[str, Any]] = {}
+    for doc in docs:
+        p_id = doc.get("p_id")
+        if p_id is None:
+            continue
+        try:
+            pid_str = str(int(float(p_id)))
+        except Exception:
+            pid_str = str(p_id).strip()
+        if not pid_str:
+            continue
+        doc_map[pid_str] = doc
+
+    selected: List[Dict[str, Any]] = []
+    used_pids = set()
+    for i, slot in enumerate(style_slots):
+        target_group = str(slot.get("group", "")).strip()
+        if not target_group:
+            continue
+        keywords = [normalize_text_value(k) for k in slot.get("keywords", []) if str(k).strip()]
+        role = str(slot.get("role", "")).strip() or ("Pair with" if i == 0 else "Complete with")
+
+        best = None
+        best_score = -1e9
+        for candidate in candidates:
+            pid = candidate["p_id"]
+            if pid in used_pids:
+                continue
+            doc = doc_map.get(pid)
+            if not doc:
+                continue
+            candidate_group = infer_outfit_group(doc)
+            if candidate_group != target_group:
+                continue
+            if source_group and candidate_group == source_group:
+                continue
+
+            text_blob = build_product_text_blob(doc)
+            keyword_hits = 0
+            if keywords:
+                keyword_hits = sum(1 for k in keywords if k and k in text_blob)
+
+            # API-guided score: similarity + keyword adherence.
+            score = (candidate["similarity"] * 0.75) + (keyword_hits * 0.25)
+            if score > best_score:
+                best_score = score
+                best = {
+                    "p_id": pid,
+                    "category": str(doc.get("category", "") or ""),
+                    "outfit_group": candidate_group,
+                    "role": role,
+                    "reason": f"Matched slot '{target_group}' from style API",
+                }
+        if best:
+            used_pids.add(best["p_id"])
+            selected.append(best)
+        if len(selected) >= max(top_n, 1):
+            break
+
+    return selected[: max(top_n, 1)]
 
 
 @app.post("/vectorize")
