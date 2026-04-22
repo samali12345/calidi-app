@@ -1,10 +1,11 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Truck } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Truck, Ticket } from "lucide-react";
 
 const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", exact: true },
   { to: "/admin/products", icon: Package, label: "Products" },
   { to: "/admin/orders", icon: ShoppingCart, label: "Orders" },
+  { to: "/admin/coupons", icon: Ticket, label: "Coupons" },
   { to: "/admin/deliveries", icon: Truck, label: "Deliveries" },
   { to: "/admin/customers", icon: Users, label: "Customers" },
   { to: "/admin/reports", icon: BarChart3, label: "Reports" },
