@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { protect } = require("../middleware/auth");
 const User = require("../models/User");
+const { getTierProgress } = require("../services/loyaltyService");
 
 function normalizeName(value = "") {
   return String(value).trim().replace(/\s+/g, " ");
@@ -27,6 +28,33 @@ function normalizeVehicleType(value = "") {
   const v = String(value || "").trim().toLowerCase();
   if (["bike", "threewheel", "van"].includes(v)) return v;
   return "";
+}
+
+function buildUserPayload(dbUser, authUser) {
+  const loyaltyTier = dbUser.loyaltyTier || "none";
+  const totalOrders = Number(dbUser.totalOrders || 0);
+  const progress = getTierProgress(totalOrders, loyaltyTier);
+
+  return {
+    id: authUser.uid,
+    email: dbUser.email,
+    name: dbUser.name || "",
+    mobileNumber: dbUser.mobileNumber || "",
+    role: dbUser.role,
+    riderApprovalStatus: dbUser.riderApprovalStatus || "none",
+    isAvailable: !!dbUser.isAvailable,
+    vehicleType: dbUser.vehicleType || "bike",
+    loyaltyTier,
+    loyaltyPoints: Number(dbUser.loyaltyPoints || 0),
+    totalOrders,
+    nextTier: progress.nextTier,
+    nextTierThreshold: progress.nextTierThreshold,
+    ordersToNextTier: progress.ordersToNextTier,
+    nextTierDiscount: progress.nextTierDiscount,
+    currentTierDiscount: progress.currentTierDiscount,
+    currentTierMin: progress.currentTierMin,
+    progressPercent: progress.progressPercent,
+  };
 }
 
 // POST /api/auth/validate-signup - frontend pre-check before Firebase signup
@@ -67,19 +95,7 @@ router.get("/me", protect, (req, res) => {
   res.json({
     isRider: isApprovedRider,
     riderApprovalStatus: req.user.riderApprovalStatus || "none",
-    user: {
-      id: req.user.uid,
-      email: req.user.email,
-      name: req.user.name || "",
-      mobileNumber: req.user.mobileNumber || "",
-      role: req.user.role,
-      riderApprovalStatus: req.user.riderApprovalStatus || "none",
-      isAvailable: !!req.user.isAvailable,
-      vehicleType: req.user.vehicleType || "bike",
-      loyaltyTier: req.user.loyaltyTier,
-      loyaltyPoints: req.user.loyaltyPoints,
-      totalOrders: req.user.totalOrders,
-    },
+    user: buildUserPayload(req.user, req.user),
   });
 });
 
@@ -126,19 +142,7 @@ router.post("/profile", protect, async (req, res) => {
       message: "Profile updated",
       isRider: isApprovedRider,
       riderApprovalStatus: updatedUser.riderApprovalStatus || "none",
-      user: {
-        id: req.user.uid,
-        email: updatedUser.email,
-        name: updatedUser.name || "",
-        mobileNumber: updatedUser.mobileNumber || "",
-        role: updatedUser.role,
-        riderApprovalStatus: updatedUser.riderApprovalStatus || "none",
-        isAvailable: !!updatedUser.isAvailable,
-        vehicleType: updatedUser.vehicleType || "bike",
-        loyaltyTier: updatedUser.loyaltyTier,
-        loyaltyPoints: updatedUser.loyaltyPoints,
-        totalOrders: updatedUser.totalOrders,
-      },
+      user: buildUserPayload(updatedUser, req.user),
     });
   } catch (error) {
     console.error("Profile update error:", error.message);
