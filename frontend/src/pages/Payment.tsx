@@ -22,6 +22,10 @@ export default function Payment() {
   const [paying, setPaying] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [doublePoints, setDoublePoints] = useState<{ active: boolean; endsAt: string | null }>({
+    active: false,
+    endsAt: null,
+  });
 
   // Simulated card form state
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
@@ -66,6 +70,16 @@ export default function Payment() {
       })
       .catch(() => toast.error("Failed to load order"));
   }, [orderId, token, navigate]);
+
+  useEffect(() => {
+    apiFetch<{ active: boolean; endsAt?: string }>("/settings/double-points")
+      .then((status) => {
+        setDoublePoints({ active: !!status.active, endsAt: status.endsAt || null });
+      })
+      .catch(() => {
+        setDoublePoints({ active: false, endsAt: null });
+      });
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -277,10 +291,22 @@ export default function Payment() {
                 <span>Subtotal</span>
                 <span>LKR {order.subtotal.toLocaleString()}</span>
               </div>
-              {order.discount > 0 && (
+              {(order.tierDiscount || 0) > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Loyalty Discount ({order.loyaltyTierAtPurchase})</span>
-                  <span>-LKR {order.discount.toLocaleString()}</span>
+                  <span>Loyalty Tier Discount ({order.loyaltyTierAtPurchase})</span>
+                  <span>-LKR {(order.tierDiscount || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {(order.pointsDiscount || 0) > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Points Redemption ({order.redeemPointsApplied || 0} pts)</span>
+                  <span>-LKR {(order.pointsDiscount || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {(order.couponDiscount || 0) > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Promo Code ({order.couponCode || "APPLIED"})</span>
+                  <span>-LKR {(order.couponDiscount || 0).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-muted-foreground">
@@ -299,6 +325,11 @@ export default function Payment() {
                 <p className="font-body text-xs text-muted-foreground">
                   You'll earn <span className="text-foreground font-medium">{order.loyaltyPointsEarned} loyalty points</span> from this purchase
                 </p>
+                {doublePoints.active && (
+                  <p className="font-body text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Double Points is active{doublePoints.endsAt ? ` until ${new Date(doublePoints.endsAt).toLocaleString()}` : ""}
+                  </p>
+                )}
               </div>
             )}
           </aside>
