@@ -3,6 +3,12 @@ const router = express.Router();
 const { protect } = require("../middleware/auth");
 const User = require("../models/User");
 const { getTierProgress } = require("../services/loyaltyService");
+const authController = require("../controllers/authController");
+
+// Basic JWT Auth
+router.post("/signup", authController.signup);
+router.post("/login", authController.login);
+
 
 function normalizeName(value = "") {
   return String(value).trim().replace(/\s+/g, " ");

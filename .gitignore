@@ -56,3 +56,4 @@ Images/
 
 # Claude worktrees
 .claude/
+**/._*
