@@ -98,8 +98,8 @@ export default function ProductDetailsScreen() {
   const sizes = product.sizes?.length ? product.sizes : ['S', 'M', 'L', 'XL', 'XXL'];
 
   return (
-    <View style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FAF9F6" />
       <ScrollView style={styles.scroll} bounces={false}>
         {/* Product Image */}
         <View style={styles.imageContainer}>
@@ -187,14 +187,15 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_400Regular',
   },
   imageContainer: {
-    height: 420,
+    width: '100%',
+    aspectRatio: 0.75, // 3:4 aspect ratio to prevent cropping
     backgroundColor: '#F5F5F5',
     position: 'relative',
   },
   image: { width: '100%', height: '100%' },
   backBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 40,
+    top: 16,
     left: 16,
     width: 40,
     height: 40,

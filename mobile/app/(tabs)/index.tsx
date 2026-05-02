@@ -256,6 +256,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: '#FFF',
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   catTabActive: {
     backgroundColor: '#000',
