@@ -23,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ravinduhe.mobile"
+      "package": "com.calidiboutique.app"
     },
     "web": {
       "bundler": "metro",
