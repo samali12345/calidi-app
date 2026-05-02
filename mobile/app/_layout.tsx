@@ -1,10 +1,11 @@
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import Animated, { FadeOut, useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import {
   PlayfairDisplay_400Regular,
   PlayfairDisplay_500Medium,
@@ -45,6 +46,8 @@ const LightTheme = {
   },
 };
 
+
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -59,13 +62,20 @@ export default function RootLayout() {
     CormorantGaramond_700Bold,
   });
 
+  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
+
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
     if (loaded) {
+      // Hide the native splash screen immediately
       SplashScreen.hideAsync();
+      // Wait a bit for our custom animation to show
+      setTimeout(() => {
+        setIsAnimationComplete(true);
+      }, 2500);
     }
   }, [loaded]);
 
@@ -78,16 +88,66 @@ export default function RootLayout() {
       <AuthProvider>
         <CartProvider>
           <ThemeProvider value={LightTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="product/[id]" />
-              <Stack.Screen name="admin/products" />
-              <Stack.Screen name="admin/orders" />
-              <Stack.Screen name="admin/customers" />
-            </Stack>
+            <View style={{ flex: 1 }}>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="product/[id]" />
+                <Stack.Screen name="admin/products" />
+                <Stack.Screen name="admin/orders" />
+                <Stack.Screen name="admin/customers" />
+              </Stack>
+              
+              {!isAnimationComplete && (
+                <AnimatedSplash onFinish={() => setIsAnimationComplete(true)} />
+              )}
+            </View>
           </ThemeProvider>
         </CartProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
 }
+
+function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
+  const scale = useSharedValue(0.8);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 1000 });
+    scale.value = withTiming(1, { 
+      duration: 2000,
+      easing: Easing.out(Easing.back(1.5))
+    });
+  }, []);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View 
+      exiting={FadeOut.duration(500)}
+      style={[StyleSheet.absoluteFill, styles.splashContainer]}
+    >
+      <Animated.Image
+        source={require('../assets/images/logo.png')}
+        style={[styles.splashLogo, logoStyle]}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  splashLogo: {
+    width: Dimensions.get('window').width * 0.7,
+    height: Dimensions.get('window').width * 0.7,
+  },
+});
