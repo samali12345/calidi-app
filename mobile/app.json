@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Calidi Boutique",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,13 +15,9 @@
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#000000"
-      },
+      "package": "com.calidiboutique.app",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.calidiboutique.app"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
