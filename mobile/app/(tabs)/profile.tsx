@@ -37,7 +37,10 @@ export default function ProfileScreen() {
         await login(email.trim().toLowerCase(), password);
       }
     } catch (e: any) {
-      Alert.alert(isSigningUp ? 'Signup Failed' : 'Login Failed', e.message || 'Error occurred');
+      const msg = e.response?.status === 401 
+        ? 'Wrong username or password' 
+        : (e.response?.data?.message || e.message || 'Error occurred');
+      Alert.alert(isSigningUp ? 'Signup Failed' : 'Login Failed', msg);
     } finally {
       setLoggingIn(false);
     }

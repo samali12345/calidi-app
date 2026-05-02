@@ -161,7 +161,7 @@ export default function AdminScreen() {
           <ActionRow
             icon={<TrendingUp size={20} color="#333" strokeWidth={1.5} />}
             label="Sales Reports"
-            onPress={() => Alert.alert('Coming Soon', 'Reports coming soon')}
+            onPress={() => router.push('/admin/reports')}
           />
           <ActionRow
             icon={<DollarSign size={20} color="#333" strokeWidth={1.5} />}
@@ -171,7 +171,7 @@ export default function AdminScreen() {
           <ActionRow
             icon={<Settings size={20} color="#333" strokeWidth={1.5} />}
             label="Settings"
-            onPress={() => Alert.alert('Coming Soon', 'Settings coming soon')}
+            onPress={() => router.push('/admin/settings')}
             last
           />
         </View>
