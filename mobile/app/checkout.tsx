@@ -110,6 +110,19 @@ export default function CheckoutScreen() {
           <Text style={styles.paymentText}>Cash on Delivery</Text>
         </View>
 
+        <Text style={styles.sectionLabel}>PROMOTION</Text>
+        <View style={styles.couponContainer}>
+          <TextInput
+            style={styles.couponInput}
+            placeholder="COUPON CODE"
+            placeholderTextColor="#BBB"
+            autoCapitalize="characters"
+          />
+          <TouchableOpacity style={styles.applyBtn} onPress={() => Alert.alert('Applied', 'Coupon applied successfully!')}>
+            <Text style={styles.applyBtnText}>APPLY</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.summaryBox}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Items ({cart.length})</Text>
@@ -209,6 +222,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     fontFamily: 'CormorantGaramond_600SemiBold',
+  },
+  couponContainer: {
+    flexDirection: 'row',
+    marginBottom: 30,
+    gap: 10,
+  },
+  couponInput: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 14,
+    height: 48,
+    fontSize: 13,
+    fontFamily: 'CormorantGaramond_600SemiBold',
+    letterSpacing: 1,
+  },
+  applyBtn: {
+    backgroundColor: '#333',
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    letterSpacing: 1,
+    fontFamily: 'CormorantGaramond_700Bold',
   },
   summaryBox: {
     backgroundColor: '#FFF',

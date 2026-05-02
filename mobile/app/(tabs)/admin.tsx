@@ -164,6 +164,11 @@ export default function AdminScreen() {
             onPress={() => Alert.alert('Coming Soon', 'Reports coming soon')}
           />
           <ActionRow
+            icon={<DollarSign size={20} color="#333" strokeWidth={1.5} />}
+            label="Manage Coupons"
+            onPress={() => Alert.alert('Promotions', 'Coupon management interface')}
+          />
+          <ActionRow
             icon={<Settings size={20} color="#333" strokeWidth={1.5} />}
             label="Settings"
             onPress={() => Alert.alert('Coming Soon', 'Settings coming soon')}
