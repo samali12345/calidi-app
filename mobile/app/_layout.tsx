@@ -19,6 +19,7 @@ import {
 } from '@expo-google-fonts/cormorant-garamond';
 import { AuthProvider } from '../context/AuthContext';
 import { CartProvider } from '../context/CartContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export {
   ErrorBoundary,
@@ -73,18 +74,20 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <CartProvider>
-        <ThemeProvider value={LightTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="product/[id]" />
-            <Stack.Screen name="admin/products" />
-            <Stack.Screen name="admin/orders" />
-            <Stack.Screen name="admin/customers" />
-          </Stack>
-        </ThemeProvider>
-      </CartProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <CartProvider>
+          <ThemeProvider value={LightTheme}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="product/[id]" />
+              <Stack.Screen name="admin/products" />
+              <Stack.Screen name="admin/orders" />
+              <Stack.Screen name="admin/customers" />
+            </Stack>
+          </ThemeProvider>
+        </CartProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

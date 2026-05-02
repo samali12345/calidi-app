@@ -4,7 +4,7 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const admin = require('../config/firebase');
 
-const IMAGE_BASE = 'http://127.0.0.1:5000/api/products/image';
+const IMAGE_BASE = `${process.env.BACKEND_PUBLIC_URL || 'http://127.0.0.1:5001'}/api/products/image`;
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || "http://127.0.0.1:8000";
 
 // Helper: stream all GridFS chunks for an image_id and return a Buffer

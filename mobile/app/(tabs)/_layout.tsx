@@ -4,9 +4,11 @@ import { Tabs } from 'expo-router';
 import { ShoppingBag, ShoppingCart, User, List, ShieldCheck } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   const { isAdmin } = useAuth();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -18,8 +20,8 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#F0F0F0',
-          height: Platform.OS === 'ios' ? 80 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          height: Platform.OS === 'ios' ? 80 + insets.bottom : 65 + insets.bottom,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : insets.bottom + 5,
           paddingTop: 8,
           elevation: 10,
           shadowColor: '#000',
