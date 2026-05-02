@@ -12,7 +12,8 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.calidiboutique.app"
     },
     "android": {
       "package": "com.calidiboutique.app",
