@@ -70,8 +70,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <ShieldCheck size={size} color={color} strokeWidth={1.5} />,
         }}
       />
-      {/* Hide unused screens */}
-      <Tabs.Screen name="two" options={{ href: null }} />
     </Tabs>
   );
 }
