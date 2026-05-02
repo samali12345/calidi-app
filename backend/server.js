@@ -22,14 +22,7 @@ const app = express();
 
 // 1. CORS: accept requests from the Vite dev server on any loopback address
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (curl, Postman) or any localhost/127.0.0.1 origin
-    if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: '*',
   credentials: true
 }));
 
@@ -53,6 +46,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/rider', riderRoutes);
+app.use('/api/mobile', require('./routes/mobileRoutes')); // Mount mobile routes
 
 const PORT = process.env.PORT || 5000;
 
@@ -63,8 +57,8 @@ mongoose.connect(process.env.MONGODB_URI)
     startRecommendationIndexer();
     startPointsExpiryService();
     startCartRecoveryService();
-    app.listen(PORT, () => {
-      console.log(`🚀 Node Server running on http://127.0.0.1:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Node Server running on http://0.0.0.0:${PORT}`);
     });
   })
   .catch(err => console.log("❌ MongoDB Connection Error:", err));
