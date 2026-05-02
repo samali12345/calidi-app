@@ -173,7 +173,7 @@ export default function ProductDetailsScreen() {
           <Text style={styles.cartBtnText}>{added ? 'ADDED!' : 'ADD TO CART'}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
