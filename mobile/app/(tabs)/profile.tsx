@@ -11,22 +11,33 @@ import {
 import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
-  const { user, login, logout, loading } = useAuth();
+  const { user, login, signup, logout, loading } = useAuth();
   const router = useRouter();
+  const [isSigningUp, setIsSigningUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const handleLogin = async () => {
+  const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Required', 'Please enter your email and password');
       return;
     }
+    if (isSigningUp && !name.trim()) {
+      Alert.alert('Required', 'Please enter your name');
+      return;
+    }
+
     try {
       setLoggingIn(true);
-      await login(email.trim().toLowerCase(), password);
+      if (isSigningUp) {
+        await signup(email.trim().toLowerCase(), password, name.trim());
+      } else {
+        await login(email.trim().toLowerCase(), password);
+      }
     } catch (e: any) {
-      Alert.alert('Login Failed', e.message || 'Invalid credentials');
+      Alert.alert(isSigningUp ? 'Signup Failed' : 'Login Failed', e.message || 'Error occurred');
     } finally {
       setLoggingIn(false);
     }
@@ -56,11 +67,26 @@ export default function ProfileScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="#FAF9F6" />
         <ScrollView contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled">
           <View style={styles.loginHeader}>
-            <Text style={styles.loginTitle}>WELCOME BACK</Text>
-            <Text style={styles.loginSubtitle}>SIGN IN TO YOUR CALIDI ACCOUNT</Text>
+            <Text style={styles.loginTitle}>{isSigningUp ? 'CREATE ACCOUNT' : 'WELCOME BACK'}</Text>
+            <Text style={styles.loginSubtitle}>
+              {isSigningUp ? 'JOIN THE CALIDI COMMUNITY' : 'SIGN IN TO YOUR CALIDI ACCOUNT'}
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
+            {isSigningUp && (
+              <View style={styles.inputWrap}>
+                <UserIcon size={18} color="#AAA" strokeWidth={1.5} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full Name"
+                  placeholderTextColor="#BBB"
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+              </View>
+            )}
             <View style={styles.inputWrap}>
               <Mail size={18} color="#AAA" strokeWidth={1.5} />
               <TextInput
@@ -89,20 +115,31 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             style={[styles.loginBtn, loggingIn && { opacity: 0.7 }]}
-            onPress={handleLogin}
+            onPress={handleAuth}
             disabled={loggingIn}
           >
             {loggingIn
               ? <ActivityIndicator size="small" color="#FFF" />
-              : <Text style={styles.loginBtnText}>SIGN IN</Text>
+              : <Text style={styles.loginBtnText}>{isSigningUp ? 'SIGN UP' : 'SIGN IN'}</Text>
             }
           </TouchableOpacity>
 
-          <View style={styles.demoBox}>
-            <Text style={styles.demoTitle}>TEST ACCOUNTS</Text>
-            <Text style={styles.demoItem}>👤 user@calidi.com  /  user123</Text>
-            <Text style={styles.demoItem}>🛡️ admin@calidi.com  /  admin123</Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.toggleBtn} 
+            onPress={() => setIsSigningUp(!isSigningUp)}
+          >
+            <Text style={styles.toggleText}>
+              {isSigningUp ? 'ALREADY HAVE AN ACCOUNT? SIGN IN' : 'DON\'T HAVE AN ACCOUNT? SIGN UP'}
+            </Text>
+          </TouchableOpacity>
+
+          {!isSigningUp && (
+            <View style={styles.demoBox}>
+              <Text style={styles.demoTitle}>TEST ACCOUNTS</Text>
+              <Text style={styles.demoItem}>👤 user@calidi.com  /  user123</Text>
+              <Text style={styles.demoItem}>🛡️ admin@calidi.com  /  admin123</Text>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     );
@@ -221,6 +258,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 3,
     fontFamily: 'CormorantGaramond_700Bold',
+  },
+  toggleBtn: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  toggleText: {
+    fontSize: 11,
+    color: '#000',
+    letterSpacing: 1.5,
+    fontFamily: 'CormorantGaramond_700Bold',
+    textDecorationLine: 'underline',
   },
   demoBox: {
     backgroundColor: '#F5F5F5',

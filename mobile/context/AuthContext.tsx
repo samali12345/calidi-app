@@ -14,6 +14,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -94,6 +95,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await safeSet('auth_user', JSON.stringify(u));
   };
 
+  const signup = async (email: string, password: string, name: string) => {
+    console.log('[Auth] Signing up to:', `${API_BASE_URL}/auth/signup`);
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/signup`,
+      { email, password, name },
+      { timeout: 10000 }
+    );
+    const { token: t, user: u } = response.data;
+    setToken(t);
+    setUser(u);
+    await safeSet('auth_token', t);
+    await safeSet('auth_user', JSON.stringify(u));
+  };
+
   const logout = async () => {
     setToken(null);
     setUser(null);
@@ -104,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = user?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, token, loading, login, signup, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
