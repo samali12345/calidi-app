@@ -131,7 +131,7 @@ function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
       style={[StyleSheet.absoluteFill, styles.splashContainer]}
     >
       <Animated.Image
-        source={require('../assets/images/logo.png')}
+        source={require('../assets/images/icon.png')}
         style={[styles.splashLogo, logoStyle]}
         resizeMode="contain"
       />
