@@ -13,6 +13,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const userRoutes = require('./routes/userRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
 const riderRoutes = require('./routes/riderRoutes');
+const refundRoutes = require('./routes/refundRoutes');
 const { startExpiryService } = require('./services/orderExpiry');
 const { startRecommendationIndexer } = require('./services/recommendationIndexer');
 const { startPointsExpiryService } = require('./services/pointsExpiryService');
@@ -47,6 +48,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/rider', riderRoutes);
 app.use('/api/mobile', require('./routes/mobileRoutes')); // Mount mobile routes
+app.use('/api', refundRoutes);
 
 const PORT = process.env.PORT || 5000;
 

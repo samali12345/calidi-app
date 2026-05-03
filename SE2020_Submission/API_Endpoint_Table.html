@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CALIDI CRUD API Specification</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 40px auto; padding: 20px; }
+        h1 { text-align: center; color: #000; border-bottom: 3px solid #000; padding-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
+        h2 { background: #f4f4f4; padding: 10px; border-left: 5px solid #000; margin-top: 30px; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px; }
+        th { background-color: #000; color: #fff; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .method { font-weight: bold; color: #000; width: 15%; }
+        .endpoint { font-family: 'Courier New', Courier, monospace; color: #0056b3; width: 35%; }
+        .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>CALIDI Boutique: API Endpoint Specification</h1>
+
+    <h2>1. User Management (CRUD)</h2>
+    <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+            <tr><td class="method">POST</td><td class="endpoint">/api/auth/signup</td><td>User Registration</td><td>No</td></tr>
+            <tr><td class="method">POST</td><td class="endpoint">/api/auth/login</td><td>Secure Authentication</td><td>No</td></tr>
+            <tr><td class="method">GET</td><td class="endpoint">/api/auth/me</td><td>Fetch Profile Info</td><td>Yes</td></tr>
+            <tr><td class="method">DELETE</td><td class="endpoint">/api/auth/account</td><td>Remove Account</td><td>Yes</td></tr>
+        </tbody>
+    </table>
+
+    <h2>2. Product Management (CRUD)</h2>
+    <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+            <tr><td class="method">GET</td><td class="endpoint">/api/products</td><td>Fetch Catalog</td><td>No</td></tr>
+            <tr><td class="method">POST</td><td class="endpoint">/api/admin/products</td><td>Create Product</td><td>Admin</td></tr>
+            <tr><td class="method">PUT</td><td class="endpoint">/api/admin/products/:id</td><td>Update Stock</td><td>Admin</td></tr>
+            <tr><td class="method">DELETE</td><td class="endpoint">/api/admin/products/:id</td><td>Remove Product</td><td>Admin</td></tr>
+        </tbody>
+    </table>
+
+    <h2>3. Order Management (CRUD)</h2>
+    <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+            <tr><td class="method">POST</td><td class="endpoint">/api/orders</td><td>Create Order</td><td>Yes</td></tr>
+            <tr><td class="method">POST</td><td class="endpoint">/api/orders/:id/pay</td><td>Process Payment</td><td>Yes</td></tr>
+            <tr><td class="method">GET</td><td class="endpoint">/api/orders</td><td>Purchase History</td><td>Yes</td></tr>
+            <tr><td class="method">PUT</td><td class="endpoint">/api/admin/orders/:id/status</td><td>Update Status</td><td>Admin</td></tr>
+        </tbody>
+    </table>
+
+    <h2>4. Return & Refund Management (CRUD)</h2>
+    <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+            <tr><td class="method">POST</td><td class="endpoint">/api/refunds/request/:id</td><td>Submit Refund Request</td><td>Yes</td></tr>
+            <tr><td class="method">GET</td><td class="endpoint">/api/admin/refunds</td><td>View All Requests</td><td>Admin</td></tr>
+            <tr><td class="method">PUT</td><td class="endpoint">/api/admin/refunds/:id/approve</td><td>Approve & Restore Stock</td><td>Admin</td></tr>
+            <tr><td class="method">PUT</td><td class="endpoint">/api/admin/refunds/:id/reject</td><td>Reject Request</td><td>Admin</td></tr>
+            <tr><td class="method">GET</td><td class="endpoint">/api/refunds/status/:id</td><td>Track Status</td><td>Yes</td></tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        CALIDI Boutique - Technical Documentation - ITP 104 - 2026
+    </div>
+
+</body>
+</html>

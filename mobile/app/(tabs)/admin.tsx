@@ -169,6 +169,11 @@ export default function AdminScreen() {
             onPress={() => Alert.alert('Promotions', 'Coupon management interface')}
           />
           <ActionRow
+            icon={<ShieldOff size={20} color="#333" strokeWidth={1.5} />}
+            label="Manage Refunds"
+            onPress={() => router.push('/admin/refunds')}
+          />
+          <ActionRow
             icon={<Settings size={20} color="#333" strokeWidth={1.5} />}
             label="Settings"
             onPress={() => router.push('/admin/settings')}

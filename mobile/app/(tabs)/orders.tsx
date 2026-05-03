@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X } from 'lucide-react-native';
 
 interface Order {
   _id: string;
@@ -30,6 +30,10 @@ export default function OrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -55,6 +59,45 @@ export default function OrdersScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+  };
+
+  const handleRefundPress = async (orderId: string) => {
+    try {
+      // Check if refund already exists
+      const res = await axios.get(`${API_BASE_URL}/refunds/status/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data) {
+        Alert.alert('Refund Status', `Your refund is currently: ${res.data.status.toUpperCase()}\n\nReason: ${res.data.reason}\n${res.data.adminComment ? `Admin: ${res.data.adminComment}` : ''}`);
+        return;
+      }
+    } catch (e: any) {
+      if (e.response && e.response.status === 404) {
+        // No refund requested yet, open modal
+        setSelectedOrderId(orderId);
+        setRefundReason('');
+        setRefundModalVisible(true);
+      } else {
+        Alert.alert('Error', 'Failed to check refund status');
+      }
+    }
+  };
+
+  const submitRefund = async () => {
+    if (!refundReason.trim()) return Alert.alert('Error', 'Please provide a reason');
+    setRefundSubmitting(true);
+    try {
+      await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrderId}`, 
+        { reason: refundReason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      Alert.alert('Success', 'Refund request submitted successfully');
+      setRefundModalVisible(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.error || 'Failed to submit refund request');
+    } finally {
+      setRefundSubmitting(false);
+    }
   };
 
   if (!user) {
@@ -141,12 +184,54 @@ export default function OrdersScreen() {
               )}
               <View style={styles.orderBottom}>
                 <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
-                <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                  {item.status !== 'pending' && item.status !== 'cancelled' && (
+                    <TouchableOpacity onPress={() => handleRefundPress(item._id)} style={styles.refundBtn}>
+                      <Text style={styles.refundBtnText}>REFUND</Text>
+                    </TouchableOpacity>
+                  )}
+                  <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
+                </View>
               </View>
             </View>
           );
         }}
       />
+
+      <Modal visible={refundModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>REQUEST REFUND</Text>
+              <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
+                <X size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>Order #{selectedOrderId.slice(-8).toUpperCase()}</Text>
+            
+            <TextInput
+              style={styles.textInput}
+              placeholder="Please provide a detailed reason for your refund..."
+              multiline
+              numberOfLines={4}
+              value={refundReason}
+              onChangeText={setRefundReason}
+            />
+
+            <TouchableOpacity 
+              style={[styles.submitBtn, refundSubmitting && { opacity: 0.7 }]} 
+              onPress={submitRefund}
+              disabled={refundSubmitting}
+            >
+              {refundSubmitting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>SUBMIT REQUEST</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -262,5 +347,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     fontFamily: 'CormorantGaramond_700Bold',
+  },
+  refundBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    borderRadius: 4,
+  },
+  refundBtnText: {
+    fontSize: 10,
+    color: '#DC2626',
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: 'PlayfairDisplay_700Bold',
+    letterSpacing: 1,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#888',
+    fontFamily: 'CormorantGaramond_500Medium',
+    marginBottom: 16,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    borderRadius: 4,
+    padding: 12,
+    height: 100,
+    textAlignVertical: 'top',
+    fontFamily: 'CormorantGaramond_400Regular',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  submitBtn: {
+    backgroundColor: '#000',
+    padding: 14,
+    alignItems: 'center',
+    borderRadius: 4,
+  },
+  submitBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1,
   },
 });

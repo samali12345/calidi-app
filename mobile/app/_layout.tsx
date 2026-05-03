@@ -5,7 +5,6 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import Animated, { FadeOut, useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import {
   PlayfairDisplay_400Regular,
   PlayfairDisplay_500Medium,
@@ -32,7 +31,6 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-// Force a clean light theme always
 const LightTheme = {
   ...DefaultTheme,
   colors: {
@@ -45,8 +43,6 @@ const LightTheme = {
     notification: '#E91E63',
   },
 };
-
-
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -62,20 +58,13 @@ export default function RootLayout() {
     CormorantGaramond_700Bold,
   });
 
-  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
-
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
     if (loaded) {
-      // Hide the native splash screen immediately
       SplashScreen.hideAsync();
-      // Wait a bit for our custom animation to show
-      setTimeout(() => {
-        setIsAnimationComplete(true);
-      }, 2500);
     }
   }, [loaded]);
 
@@ -96,46 +85,11 @@ export default function RootLayout() {
                 <Stack.Screen name="admin/orders" />
                 <Stack.Screen name="admin/customers" />
               </Stack>
-              
-              {!isAnimationComplete && (
-                <AnimatedSplash onFinish={() => setIsAnimationComplete(true)} />
-              )}
             </View>
           </ThemeProvider>
         </CartProvider>
       </AuthProvider>
     </SafeAreaProvider>
-  );
-}
-
-function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
-  const scale = useSharedValue(0.8);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    opacity.value = withTiming(1, { duration: 1000 });
-    scale.value = withTiming(1, { 
-      duration: 2000,
-      easing: Easing.out(Easing.back(1.5))
-    });
-  }, []);
-
-  const logoStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View 
-      exiting={FadeOut.duration(500)}
-      style={[StyleSheet.absoluteFill, styles.splashContainer]}
-    >
-      <Animated.Image
-        source={require('../assets/images/icon.png')}
-        style={[styles.splashLogo, logoStyle]}
-        resizeMode="contain"
-      />
-    </Animated.View>
   );
 }
 
