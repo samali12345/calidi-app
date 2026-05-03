@@ -2,16 +2,62 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const { protect } = require("../middleware/auth");
+const { protectJWT } = require("../middleware/authJWT");
 const { requireAdmin } = require("../middleware/admin");
 const admin = require("../controllers/adminController");
+const Refund = require("../models/Refund");
+const Order = require("../models/Order");
 
-// Multer config for image uploads (memory storage for GridFS)
+// Multer config for image uploads
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// All admin routes require auth + admin role
-router.use(protect, requireAdmin);
+/**
+ * Custom Middleware to allow both Firebase (protect) and Mobile JWT (protectJWT)
+ * This ensures the admin panel works for both web admin and mobile/expo-web admin
+ */
+const flexibleProtect = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Try JWT first (Mobile/Expo Web)
+    return protectJWT(req, res, next);
+  }
+  // Fallback to Firebase (Web Dashboard)
+  return protect(req, res, next);
+};
 
-// Dashboard
+// All admin routes require auth + admin role
+router.use(flexibleProtect, requireAdmin);
+
+// Refund Management (Added here for consolidation)
+router.get("/refunds", async (req, res) => {
+  try {
+    const refunds = await Refund.find().sort({ createdAt: -1 });
+    res.json(refunds);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch refunds" });
+  }
+});
+
+router.put("/refunds/:id", async (req, res) => {
+  try {
+    const { status, adminComment } = req.body;
+    const refund = await Refund.findById(req.params.id);
+    if (!refund) return res.status(404).json({ error: "Refund not found" });
+
+    refund.status = status;
+    if (adminComment !== undefined) refund.adminComment = adminComment;
+    await refund.save();
+
+    if (status === "approved") {
+      await Order.findOneAndUpdate({ orderId: refund.orderId }, { status: "refunded" });
+    }
+    res.json(refund);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update refund" });
+  }
+});
+
+// Original Dashboard Routes
 router.get("/dashboard/stats", admin.getDashboardStats);
 router.get("/dashboard/sales", admin.getSalesData);
 router.get("/settings/double-points", admin.getDoublePointsSetting);

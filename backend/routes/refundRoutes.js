@@ -1,9 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const { protectJWT } = require("../middleware/authJWT");
-const { requireAdmin } = require("../middleware/admin");
 const Refund = require("../models/Refund");
 const Order = require("../models/Order");
+
+/**
+ * CUSTOMER ROUTES
+ */
 
 // User requests a refund
 router.post("/refunds/request/:id", protectJWT, async (req, res) => {
@@ -61,48 +64,6 @@ router.get("/refunds/status/:id", protectJWT, async (req, res) => {
   } catch (err) {
     console.error("Refund status error:", err);
     res.status(500).json({ error: "Failed to fetch refund status" });
-  }
-});
-
-// Admin views pending refund requests
-router.get("/admin/refunds", protectJWT, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
-    const refunds = await Refund.find().sort({ createdAt: -1 });
-    res.json(refunds);
-  } catch (err) {
-    console.error("Admin fetch refunds error:", err);
-    res.status(500).json({ error: "Failed to fetch refund requests" });
-  }
-});
-
-// Admin approves/rejects refund
-router.put("/admin/refunds/:id", protectJWT, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
-    const { id: refundId } = req.params;
-    const { status, adminComment } = req.body;
-    
-    const refund = await Refund.findById(refundId);
-    if (!refund) {
-      return res.status(404).json({ error: "Refund not found" });
-    }
-
-    refund.status = status;
-    if (adminComment !== undefined) {
-      refund.adminComment = adminComment;
-    }
-    await refund.save();
-
-    if (status === "approved") {
-      // Update order status to 'refunded'
-      await Order.findOneAndUpdate({ orderId: refund.orderId }, { status: "refunded" });
-    }
-
-    res.json(refund);
-  } catch (err) {
-    console.error("Admin update refund error:", err);
-    res.status(500).json({ error: "Failed to update refund request" });
   }
 });
 
