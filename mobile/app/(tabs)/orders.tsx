@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera, Truck } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera, Truck, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 interface Order {
@@ -262,9 +262,12 @@ export default function OrdersScreen() {
           });
           const displayId = item.orderId || `#${item._id.slice(-8).toUpperCase()}`;
           
-          // Check if order is within 7-day refund window
+          // Calculate Refund Expiry
           const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          const isWithinWindow = (Date.now() - new Date(item.createdAt).getTime()) <= sevenDaysInMs;
+          const timeSinceOrder = Date.now() - new Date(item.createdAt).getTime();
+          const timeLeft = sevenDaysInMs - timeSinceOrder;
+          const isWithinWindow = timeLeft > 0;
+          const daysLeft = Math.ceil(timeLeft / (1000 * 60 * 60 * 24));
 
           return (
             <View style={styles.orderCard}>
@@ -304,18 +307,27 @@ export default function OrdersScreen() {
                 <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   {item.status !== 'pending' && item.status !== 'cancelled' && item.status !== 'refunded' && (
-                    isWithinWindow || item.refundStatus ? (
-                      <TouchableOpacity 
-                        onPress={() => handleRefundPress(item)} 
-                        style={[styles.refundBtn, item.refundStatus ? styles.refundRequestedBtn : null]}
-                      >
-                        <Text style={[styles.refundBtnText, item.refundStatus ? {color: '#888'} : null]}>
-                          {item.refundStatus ? 'VIEW STATUS' : 'REQUEST REFUND'}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={styles.expiredLabel}>Refund Expired</Text>
-                    )
+                    <View style={{ alignItems: 'flex-end' }}>
+                      {item.refundStatus ? (
+                         <TouchableOpacity onPress={() => handleRefundPress(item)} style={[styles.refundBtn, styles.refundRequestedBtn]}>
+                           <Text style={[styles.refundBtnText, {color: '#888'}]}>VIEW STATUS</Text>
+                         </TouchableOpacity>
+                      ) : isWithinWindow ? (
+                        <>
+                          <TouchableOpacity onPress={() => handleRefundPress(item)} style={styles.refundBtn}>
+                            <Text style={styles.refundBtnText}>REQUEST REFUND</Text>
+                          </TouchableOpacity>
+                          <View style={styles.countdownRow}>
+                            <Clock size={10} color="#F59E0B" />
+                            <Text style={styles.countdownText}>
+                              {daysLeft === 1 ? 'Ends today' : `${daysLeft} days left`}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={styles.expiredLabel}>Refund Window Closed</Text>
+                      )}
+                    </View>
                   )}
                   <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
                 </View>
@@ -555,6 +567,17 @@ const styles = StyleSheet.create({
     color: '#000',
     fontFamily: 'CormorantGaramond_700Bold',
     letterSpacing: 1.5,
+  },
+  countdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  countdownText: {
+    fontSize: 9,
+    color: '#F59E0B',
+    fontFamily: 'CormorantGaramond_700Bold',
   },
   expiredLabel: {
     fontSize: 10,
