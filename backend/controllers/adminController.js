@@ -860,3 +860,67 @@ exports.updateRefundStatus = async (req, res) => {
     res.status(500).json({ error: "Failed to update refund status" });
   }
 };
+
+// GET /api/admin/deliveries
+exports.getDeliveries = async (req, res) => {
+  try {
+    const deliveries = await Delivery.find().sort({ createdAt: -1 }).limit(50);
+    res.json(deliveries);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch deliveries" });
+  }
+};
+
+// GET /api/admin/deliveries/stats
+exports.getDeliveryStats = async (req, res) => {
+  try {
+    const [total, pending, active, completed] = await Promise.all([
+      Delivery.countDocuments(),
+      Delivery.countDocuments({ status: "pending" }),
+      Delivery.countDocuments({ status: { $in: ["assigned", "picked_up", "near_destination"] } }),
+      Delivery.countDocuments({ status: "delivered" }),
+    ]);
+    res.json({ total, pending, active, completed });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch delivery stats" });
+  }
+};
+
+// PUT /api/admin/deliveries/:deliveryId/status
+exports.updateDeliveryStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const delivery = await Delivery.findOneAndUpdate(
+      { deliveryId: req.params.deliveryId },
+      { status },
+      { new: true }
+    );
+    if (!delivery) return res.status(404).json({ error: "Delivery not found" });
+    
+    // Notify via real-time and push
+    broadcastDeliveryUpdate(delivery);
+    sendDeliveryStatusPush(delivery);
+
+    res.json(delivery);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update delivery status" });
+  }
+};
+
+// PUT /api/admin/deliveries/:deliveryId/live
+exports.updateDeliveryLive = async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    const delivery = await Delivery.findOneAndUpdate(
+      { deliveryId: req.params.deliveryId },
+      { "riderLocation.lat": lat, "riderLocation.lng": lng, "riderLocation.lastUpdated": new Date() },
+      { new: true }
+    );
+    if (!delivery) return res.status(404).json({ error: "Delivery not found" });
+    
+    broadcastDeliveryUpdate(delivery);
+    res.json(delivery);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update live location" });
+  }
+};
