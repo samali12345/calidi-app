@@ -754,6 +754,18 @@ exports.getSalesReport = async (req, res) => {
   }
 };
 
+// GET /api/admin/reports/stock
+exports.getStockReport = async (req, res) => {
+  try {
+    const products = await Product.find({})
+      .select("name p_id category stock lowStockThreshold price")
+      .sort({ stock: 1 });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch stock report" });
+  }
+};
+
 // DELETE /api/admin/products/:p_id - Remove a product
 exports.deleteProduct = async (req, res) => {
   try {
