@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView, Image
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2 } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 interface Order {
   _id: string;
@@ -55,7 +56,8 @@ export default function OrdersScreen() {
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [selectedReasonCat, setSelectedReasonCat] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   
   const router = useRouter();
@@ -85,6 +87,49 @@ export default function OrdersScreen() {
     fetchOrders();
   };
 
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImageAndGetUrl = async (uri: string): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'upload.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`;
+
+      // @ts-ignore
+      formData.append('image', { uri, name: filename, type });
+
+      const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      return response.data.url;
+    } catch (e) {
+      console.error('[Upload] Failed:', e);
+      return null;
+    }
+  };
+
   const handleRefundPress = (order: Order) => {
     if (order.refundStatus) {
       const statusMsg = `Your refund is: ${order.refundStatus.toUpperCase()}\n\nReason: ${order.refundReason}\n${order.adminComment ? `Admin: ${order.adminComment}` : ''}`;
@@ -96,7 +141,7 @@ export default function OrdersScreen() {
     setSelectedOrderId(order.orderId);
     setRefundReason('');
     setSelectedReasonCat('');
-    setImageUrl('');
+    setSelectedImage(null);
     setRefundModalVisible(true);
   };
 
@@ -111,12 +156,28 @@ export default function OrdersScreen() {
     }
     
     setRefundSubmitting(true);
+    let uploadedUrl = null;
+
+    if (selectedImage) {
+      setUploadingImage(true);
+      uploadedUrl = await uploadImageAndGetUrl(selectedImage);
+      setUploadingImage(false);
+      
+      if (!uploadedUrl) {
+        setRefundSubmitting(false);
+        const failMsg = 'Failed to upload image. Please try again.';
+        if (Platform.OS === 'web') window.alert(failMsg);
+        else Alert.alert('Error', failMsg);
+        return;
+      }
+    }
+
     try {
       await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrderId}`, 
         { 
           reason: finalReason,
           reasonCategory: selectedReasonCat || 'Other',
-          images: imageUrl ? [imageUrl] : []
+          images: uploadedUrl ? [uploadedUrl] : []
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -126,7 +187,7 @@ export default function OrdersScreen() {
       else Alert.alert('Success', successMsg);
       
       setRefundModalVisible(false);
-      fetchOrders(); // Refresh list to show new status
+      fetchOrders(); 
     } catch (e: any) {
       const errorMsg = e.response?.data?.error || e.message || 'Failed to submit refund request';
       if (Platform.OS === 'web') window.alert(errorMsg);
@@ -242,7 +303,7 @@ export default function OrdersScreen() {
                       style={[styles.refundBtn, item.refundStatus ? styles.refundRequestedBtn : null]}
                     >
                       <Text style={[styles.refundBtnText, item.refundStatus ? {color: '#888'} : null]}>
-                        {item.refundStatus ? 'VIEW REFUND' : 'REQUEST REFUND'}
+                        {item.refundStatus ? 'VIEW STATUS' : 'REQUEST REFUND'}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -265,13 +326,12 @@ export default function OrdersScreen() {
             </View>
             
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-              {/* Instructions */}
               <View style={styles.instructionCard}>
                 <Info size={16} color="#3B82F6" />
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.instructionTitle}>How it works</Text>
+                  <Text style={styles.instructionTitle}>Photo Evidence Required</Text>
                   <Text style={styles.instructionText}>
-                    Select a reason, provide details, and attach proof. Our team will review your request and process the refund to your original payment method.
+                    Please attach a clear photo of the item if it is damaged or incorrect. This helps us process your refund much faster.
                   </Text>
                 </View>
               </View>
@@ -302,25 +362,34 @@ export default function OrdersScreen() {
                 onChangeText={setRefundReason}
               />
 
-              <Text style={styles.modalLabel}>ATTACH PROOF (OPTIONAL)</Text>
-              <View style={styles.imageInputRow}>
-                <ImageIcon size={20} color="#AAA" />
-                <TextInput
-                  style={styles.imageUrlInput}
-                  placeholder="Paste image URL here..."
-                  value={imageUrl}
-                  onChangeText={setImageUrl}
-                />
-              </View>
-              <Text style={styles.imageHint}>Please provide a URL to an image showing the issue.</Text>
+              <Text style={styles.modalLabel}>ATTACH EVIDENCE PHOTO</Text>
+              <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                {selectedImage ? (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+                    <View style={styles.imageOverlay}>
+                      <Camera size={20} color="#FFF" />
+                      <Text style={styles.changePhotoText}>CHANGE PHOTO</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Camera size={32} color="#AAA" />
+                    <Text style={styles.imagePlaceholderText}>TAP TO ATTACH PHOTO</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.submitBtn, refundSubmitting && { opacity: 0.7 }]} 
+                style={[styles.submitBtn, (refundSubmitting || uploadingImage) && { opacity: 0.7 }]} 
                 onPress={submitRefund}
-                disabled={refundSubmitting}
+                disabled={refundSubmitting || uploadingImage}
               >
-                {refundSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                {refundSubmitting || uploadingImage ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <ActivityIndicator size="small" color="#FFF" />
+                    <Text style={styles.submitBtnText}>{uploadingImage ? 'UPLOADING...' : 'SUBMITTING...'}</Text>
+                  </View>
                 ) : (
                   <Text style={styles.submitBtnText}>SUBMIT REQUEST</Text>
                 )}
@@ -389,11 +458,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: '#EFEFEF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
   },
   orderTop: {
     flexDirection: 'row',
@@ -540,23 +604,57 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
     backgroundColor: '#FAFAFA',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  imageInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  imagePickerBtn: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#FAFAFA',
     borderWidth: 1,
     borderColor: '#EFEFEF',
-    paddingHorizontal: 12,
-    backgroundColor: '#FAFAFA',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    overflow: 'hidden',
   },
-  imageUrlInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 13,
-    fontFamily: 'CormorantGaramond_400Regular',
+  imagePlaceholder: {
+    alignItems: 'center',
+    gap: 12,
   },
-  imageHint: { fontSize: 10, color: '#AAA', marginTop: 6, fontFamily: 'CormorantGaramond_400Regular', marginBottom: 24 },
+  imagePlaceholderText: {
+    fontSize: 10,
+    color: '#AAA',
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1,
+  },
+  imagePreviewContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingVertical: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  changePhotoText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1,
+  },
   submitBtn: {
     backgroundColor: '#000',
     padding: 16,

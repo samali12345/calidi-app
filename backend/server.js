@@ -49,6 +49,7 @@ app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/rider', riderRoutes);
 app.use('/api/mobile', require('./routes/mobileRoutes')); // Mount mobile routes
 app.use('/api', refundRoutes);
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 const PORT = process.env.PORT || 5000;
 
