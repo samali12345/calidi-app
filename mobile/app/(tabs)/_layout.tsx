@@ -23,11 +23,20 @@ export default function TabLayout() {
           height: Platform.OS === 'ios' ? 80 + insets.bottom : 65 + insets.bottom,
           paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : insets.bottom + 5,
           paddingTop: 8,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.06,
+              shadowRadius: 8,
+            },
+            android: {
+              elevation: 10,
+            },
+            web: {
+              boxShadow: '0px -2px 8px rgba(0,0,0,0.06)',
+            },
+          }),
         },
         tabBarLabelStyle: {
           fontSize: 10,

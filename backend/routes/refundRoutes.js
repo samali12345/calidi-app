@@ -1,18 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/auth");
+const { protectJWT } = require("../middleware/authJWT");
 const { requireAdmin } = require("../middleware/admin");
 const Refund = require("../models/Refund");
 const Order = require("../models/Order");
 
 // User requests a refund
-router.post("/refunds/request/:id", protect, async (req, res) => {
+router.post("/refunds/request/:id", protectJWT, async (req, res) => {
   try {
     const { id: orderId } = req.params;
     const { reason } = req.body;
     
     // Check if order exists and belongs to user
-    const order = await Order.findOne({ orderId, userId: req.user.uid });
+    const order = await Order.findOne({ orderId, userId: req.user._id });
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
@@ -40,10 +40,10 @@ router.post("/refunds/request/:id", protect, async (req, res) => {
 });
 
 // User tracks refund progress
-router.get("/refunds/status/:id", protect, async (req, res) => {
+router.get("/refunds/status/:id", protectJWT, async (req, res) => {
   try {
     const { id: orderId } = req.params;
-    const refund = await Refund.findOne({ orderId, userId: req.user.uid });
+    const refund = await Refund.findOne({ orderId, userId: req.user._id });
     if (!refund) {
       return res.status(404).json({ error: "No refund request found for this order" });
     }
@@ -56,8 +56,9 @@ router.get("/refunds/status/:id", protect, async (req, res) => {
 });
 
 // Admin views pending refund requests
-router.get("/admin/refunds", protect, requireAdmin, async (req, res) => {
+router.get("/admin/refunds", protectJWT, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
     const refunds = await Refund.find().sort({ createdAt: -1 });
     res.json(refunds);
   } catch (err) {
@@ -67,8 +68,9 @@ router.get("/admin/refunds", protect, requireAdmin, async (req, res) => {
 });
 
 // Admin approves/rejects refund
-router.put("/admin/refunds/:id", protect, requireAdmin, async (req, res) => {
+router.put("/admin/refunds/:id", protectJWT, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
     const { id: refundId } = req.params;
     const { status, adminComment } = req.body;
     

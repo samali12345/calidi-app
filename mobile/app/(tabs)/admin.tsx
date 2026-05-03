@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, ScrollView, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, Alert, RefreshControl
+  SafeAreaView, StatusBar, ActivityIndicator, Alert, RefreshControl, Platform
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
@@ -54,6 +54,18 @@ export default function AdminScreen() {
     fetchStats();
   };
 
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to sign out?');
+      if (confirmed) logout();
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: logout },
+      ]);
+    }
+  };
+
   if (!user || !isAdmin) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -102,7 +114,7 @@ export default function AdminScreen() {
             <Text style={styles.adminName}>{user?.name?.toUpperCase() || 'ADMINISTRATOR'}</Text>
             <Text style={styles.adminEmail}>{user?.email}</Text>
           </View>
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
             <Text style={styles.logoutText}>SIGN OUT</Text>
           </TouchableOpacity>
         </View>

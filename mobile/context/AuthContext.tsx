@@ -21,17 +21,35 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Safe AsyncStorage wrapper — won't crash if native module is missing
+// Safe storage wrapper — handles Web (localStorage) and Native (AsyncStorage)
 let _storage: any = null;
 const getStorage = async () => {
   if (_storage) return _storage;
+  
+  // Try Native AsyncStorage first
   try {
     const mod = require('@react-native-async-storage/async-storage');
     _storage = mod.default || mod;
+    if (_storage) return _storage;
+  } catch (e) {}
+
+  // Fallback to Web localStorage if available
+  if (typeof window !== 'undefined' && window.localStorage) {
+    _storage = {
+      getItem: (key: string) => Promise.resolve(window.localStorage.getItem(key)),
+      setItem: (key: string, value: string) => {
+        window.localStorage.setItem(key, value);
+        return Promise.resolve();
+      },
+      removeItem: (key: string) => {
+        window.localStorage.removeItem(key);
+        return Promise.resolve();
+      },
+    };
     return _storage;
-  } catch {
-    return null;
   }
+  
+  return null;
 };
 
 const safeGet = async (key: string): Promise<string | null> => {

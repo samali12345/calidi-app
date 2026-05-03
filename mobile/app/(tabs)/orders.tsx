@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { Package, ChevronRight, ShoppingBag, X } from 'lucide-react-native';
 
 interface Order {
   _id: string;
+  orderId: string; // The human-readable ID needed for refunds
   createdAt: string;
   status: string;
   total: number;
@@ -38,7 +39,7 @@ export default function OrdersScreen() {
 
   useEffect(() => {
     if (user && token) fetchOrders();
-    else setLoading(false);
+    else if (!loading) setLoading(false);
   }, [user, token]);
 
   const fetchOrders = async () => {
@@ -63,13 +64,17 @@ export default function OrdersScreen() {
 
   const handleRefundPress = async (orderId: string) => {
     try {
-      // Check if refund already exists
+      // Check if refund already exists using the human-readable orderId
       const res = await axios.get(`${API_BASE_URL}/refunds/status/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.data) {
-        Alert.alert('Refund Status', `Your refund is currently: ${res.data.status.toUpperCase()}\n\nReason: ${res.data.reason}\n${res.data.adminComment ? `Admin: ${res.data.adminComment}` : ''}`);
-        return;
+      
+      const statusMsg = `Your refund is currently: ${res.data.status.toUpperCase()}\n\nReason: ${res.data.reason}\n${res.data.adminComment ? `Admin: ${res.data.adminComment}` : ''}`;
+      
+      if (Platform.OS === 'web') {
+        window.alert(statusMsg);
+      } else {
+        Alert.alert('Refund Status', statusMsg);
       }
     } catch (e: any) {
       if (e.response && e.response.status === 404) {
@@ -78,23 +83,37 @@ export default function OrdersScreen() {
         setRefundReason('');
         setRefundModalVisible(true);
       } else {
-        Alert.alert('Error', 'Failed to check refund status');
+        const errorMsg = 'Failed to check refund status';
+        if (Platform.OS === 'web') window.alert(errorMsg);
+        else Alert.alert('Error', errorMsg);
       }
     }
   };
 
   const submitRefund = async () => {
-    if (!refundReason.trim()) return Alert.alert('Error', 'Please provide a reason');
+    if (!refundReason.trim()) {
+      if (Platform.OS === 'web') window.alert('Please provide a reason');
+      else Alert.alert('Error', 'Please provide a reason');
+      return;
+    }
+    
     setRefundSubmitting(true);
     try {
       await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrderId}`, 
         { reason: refundReason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert('Success', 'Refund request submitted successfully');
+      
+      if (Platform.OS === 'web') {
+        window.alert('Refund request submitted successfully');
+      } else {
+        Alert.alert('Success', 'Refund request submitted successfully');
+      }
       setRefundModalVisible(false);
     } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.error || 'Failed to submit refund request');
+      const errorMsg = e.response?.data?.error || 'Failed to submit refund request';
+      if (Platform.OS === 'web') window.alert(errorMsg);
+      else Alert.alert('Error', errorMsg);
     } finally {
       setRefundSubmitting(false);
     }
@@ -160,11 +179,15 @@ export default function OrdersScreen() {
           const date = new Date(item.createdAt).toLocaleDateString('en-US', {
             day: 'numeric', month: 'short', year: 'numeric'
           });
+          // Use orderId if available, fallback to shortened _id
+          const displayId = item.orderId || `#${item._id.slice(-8).toUpperCase()}`;
+          const rawId = item.orderId || item._id;
+
           return (
             <View style={styles.orderCard}>
               <View style={styles.orderTop}>
                 <View>
-                  <Text style={styles.orderId}>#{item._id.slice(-8).toUpperCase()}</Text>
+                  <Text style={styles.orderId}>{displayId}</Text>
                   <Text style={styles.orderDate}>{date}</Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
@@ -186,7 +209,7 @@ export default function OrdersScreen() {
                 <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                   {item.status !== 'pending' && item.status !== 'cancelled' && (
-                    <TouchableOpacity onPress={() => handleRefundPress(item._id)} style={styles.refundBtn}>
+                    <TouchableOpacity onPress={() => handleRefundPress(rawId)} style={styles.refundBtn}>
                       <Text style={styles.refundBtnText}>REFUND</Text>
                     </TouchableOpacity>
                   )}
@@ -207,7 +230,7 @@ export default function OrdersScreen() {
                 <X size={24} color="#000" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Order #{selectedOrderId.slice(-8).toUpperCase()}</Text>
+            <Text style={styles.modalSubtitle}>Order {selectedOrderId}</Text>
             
             <TextInput
               style={styles.textInput}

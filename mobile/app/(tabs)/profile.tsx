@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   StyleSheet, TouchableOpacity, TextInput, ActivityIndicator,
-  ScrollView, View, Text, SafeAreaView, StatusBar, Alert
+  ScrollView, View, Text, SafeAreaView, StatusBar, Alert, Platform
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -47,10 +47,15 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: logout },
-    ]);
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to sign out?');
+      if (confirmed) logout();
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: logout },
+      ]);
+    }
   };
 
   if (loading) {
