@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera, Truck } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 interface Order {
@@ -28,6 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
   shipped: '#8B5CF6',
   delivered: '#10B981',
   cancelled: '#EF4444',
+  refunded: '#6B7280',
 };
 
 const REFUND_STATUS_COLOR: Record<string, string> = {
@@ -53,7 +54,7 @@ export default function OrdersScreen() {
   
   // Refund Modal State
   const [refundModalVisible, setRefundModalVisible] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [selectedReasonCat, setSelectedReasonCat] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -138,7 +139,7 @@ export default function OrdersScreen() {
       return;
     }
 
-    setSelectedOrderId(order.orderId);
+    setSelectedOrder(order);
     setRefundReason('');
     setSelectedReasonCat('');
     setSelectedImage(null);
@@ -146,6 +147,7 @@ export default function OrdersScreen() {
   };
 
   const submitRefund = async () => {
+    if (!selectedOrder) return;
     const finalReason = selectedReasonCat ? `[${selectedReasonCat}] ${refundReason}` : refundReason;
     
     if (!finalReason.trim()) {
@@ -173,7 +175,7 @@ export default function OrdersScreen() {
     }
 
     try {
-      await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrderId}`, 
+      await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrder.orderId}`, 
         { 
           reason: finalReason,
           reasonCategory: selectedReasonCat || 'Other',
@@ -259,6 +261,10 @@ export default function OrdersScreen() {
             day: 'numeric', month: 'short', year: 'numeric'
           });
           const displayId = item.orderId || `#${item._id.slice(-8).toUpperCase()}`;
+          
+          // Check if order is within 7-day refund window
+          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+          const isWithinWindow = (Date.now() - new Date(item.createdAt).getTime()) <= sevenDaysInMs;
 
           return (
             <View style={styles.orderCard}>
@@ -297,15 +303,19 @@ export default function OrdersScreen() {
               <View style={styles.orderBottom}>
                 <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  {item.status !== 'pending' && item.status !== 'cancelled' && (
-                    <TouchableOpacity 
-                      onPress={() => handleRefundPress(item)} 
-                      style={[styles.refundBtn, item.refundStatus ? styles.refundRequestedBtn : null]}
-                    >
-                      <Text style={[styles.refundBtnText, item.refundStatus ? {color: '#888'} : null]}>
-                        {item.refundStatus ? 'VIEW STATUS' : 'REQUEST REFUND'}
-                      </Text>
-                    </TouchableOpacity>
+                  {item.status !== 'pending' && item.status !== 'cancelled' && item.status !== 'refunded' && (
+                    isWithinWindow || item.refundStatus ? (
+                      <TouchableOpacity 
+                        onPress={() => handleRefundPress(item)} 
+                        style={[styles.refundBtn, item.refundStatus ? styles.refundRequestedBtn : null]}
+                      >
+                        <Text style={[styles.refundBtnText, item.refundStatus ? {color: '#888'} : null]}>
+                          {item.refundStatus ? 'VIEW STATUS' : 'REQUEST REFUND'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.expiredLabel}>Refund Expired</Text>
+                    )
                   )}
                   <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
                 </View>
@@ -329,12 +339,27 @@ export default function OrdersScreen() {
               <View style={styles.instructionCard}>
                 <Info size={16} color="#3B82F6" />
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.instructionTitle}>Photo Evidence Required</Text>
+                  <Text style={styles.instructionTitle}>Important: 7-Day Policy</Text>
                   <Text style={styles.instructionText}>
-                    Please attach a clear photo of the item if it is damaged or incorrect. This helps us process your refund much faster.
+                    Refunds are only available within 7 days of purchase. Please ensure all tags are intact.
                   </Text>
                 </View>
               </View>
+
+              {/* Return Process Info */}
+              {(selectedOrder?.status === 'shipped' || selectedOrder?.status === 'delivered') && (
+                <View style={styles.returnProcessCard}>
+                  <Truck size={16} color="#059669" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.returnTitle}>Return Process (Dispatched)</Text>
+                    <Text style={styles.returnText}>
+                      Since your item has been dispatched, please return it to:
+                      {"\n"}• CALIDI Boutique, No 45, Flower Road, Colombo 07.
+                      {"\n"}• Include the original invoice.
+                    </Text>
+                  </View>
+                </View>
+              )}
 
               <Text style={styles.modalLabel}>SELECT REASON</Text>
               <View style={styles.reasonGrid}>
@@ -531,6 +556,12 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_700Bold',
     letterSpacing: 1.5,
   },
+  expiredLabel: {
+    fontSize: 10,
+    color: '#AAA',
+    fontFamily: 'CormorantGaramond_400Regular',
+    fontStyle: 'italic',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -561,12 +592,23 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     flexDirection: 'row',
-    marginBottom: 24,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#DBEAFE',
   },
   instructionTitle: { fontSize: 12, color: '#1E40AF', fontFamily: 'CormorantGaramond_700Bold', marginBottom: 4 },
   instructionText: { fontSize: 11, color: '#3B82F6', fontFamily: 'CormorantGaramond_400Regular', lineHeight: 16 },
+  returnProcessCard: {
+    backgroundColor: '#F0FDF4',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  returnTitle: { fontSize: 12, color: '#166534', fontFamily: 'CormorantGaramond_700Bold', marginBottom: 4 },
+  returnText: { fontSize: 11, color: '#059669', fontFamily: 'CormorantGaramond_400Regular', lineHeight: 16 },
   modalLabel: {
     fontSize: 10,
     color: '#888',

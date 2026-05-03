@@ -17,6 +17,13 @@ router.post("/refunds/request/:id", protectJWT, async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    // 7-day validation
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    const orderAge = Date.now() - new Date(order.createdAt).getTime();
+    if (orderAge > sevenDaysInMs) {
+      return res.status(400).json({ error: "Refund period (7 days) has expired for this order" });
+    }
+
     // Check if refund already requested
     const existing = await Refund.findOne({ orderId });
     if (existing) {
@@ -88,7 +95,8 @@ router.put("/admin/refunds/:id", protectJWT, async (req, res) => {
     await refund.save();
 
     if (status === "approved") {
-      await Order.findOneAndUpdate({ orderId: refund.orderId }, { status: "cancelled" });
+      // Update order status to 'refunded'
+      await Order.findOneAndUpdate({ orderId: refund.orderId }, { status: "refunded" });
     }
 
     res.json(refund);
