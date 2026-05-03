@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView, Image
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView, Image, Linking
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2, Camera, Truck, Clock } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X, Info, CheckCircle2, Camera, Truck, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 interface Order {
@@ -52,7 +53,6 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Refund Modal State
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState('');
@@ -81,6 +81,11 @@ export default function OrdersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const handleDownloadInvoice = (orderId: string) => {
+    const invoiceUrl = `${API_BASE_URL}/mobile/orders/${orderId}/invoice?token=${token}`;
+    Linking.openURL(invoiceUrl);
   };
 
   const onRefresh = () => {
@@ -115,12 +120,10 @@ export default function OrdersScreen() {
       const filename = uri.split('/').pop() || 'upload.jpg';
       
       if (Platform.OS === 'web') {
-        // WEB SPECIFIC: Must convert URI to Blob
         const response = await fetch(uri);
         const blob = await response.blob();
         formData.append('image', blob, filename);
       } else {
-        // MOBILE SPECIFIC
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : `image`;
         // @ts-ignore
@@ -266,7 +269,6 @@ export default function OrdersScreen() {
         }
         renderItem={({ item }) => {
           const statusColor = STATUS_COLOR[item.status] || '#888';
-          const refundColor = item.refundStatus ? REFUND_STATUS_COLOR[item.refundStatus] : null;
           const date = new Date(item.createdAt).toLocaleDateString('en-US', {
             day: 'numeric', month: 'short', year: 'numeric'
           });
@@ -286,19 +288,10 @@ export default function OrdersScreen() {
                   <Text style={styles.orderId}>{displayId}</Text>
                   <Text style={styles.orderDate}>{date}</Text>
                 </View>
-                <View style={{ gap: 6, alignItems: 'flex-end' }}>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
                     <Text style={[styles.statusText, { color: statusColor }]}>
                       {item.status.toUpperCase()}
                     </Text>
-                  </View>
-                  {item.refundStatus && (
-                    <View style={[styles.statusBadge, { backgroundColor: refundColor + '15', borderStyle: 'dashed', borderWidth: 0.5, borderColor: refundColor }]}>
-                      <Text style={[styles.statusText, { color: refundColor, fontSize: 8 }]}>
-                        REFUND: {item.refundStatus.toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
                 </View>
               </View>
               
@@ -313,37 +306,46 @@ export default function OrdersScreen() {
                 <Text style={styles.moreItems}>+{item.items.length - 2} more items</Text>
               )}
               
-              <View style={styles.orderBottom}>
-                <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  {item.status !== 'pending' && item.status !== 'cancelled' && item.status !== 'refunded' && (
-                    <View style={{ alignItems: 'flex-end' }}>
-                      {item.refundStatus ? (
-                         <TouchableOpacity onPress={() => handleRefundPress(item)} style={[styles.refundBtn, styles.refundRequestedBtn]}>
-                           <Text style={[styles.refundBtnText, {color: '#888'}]}>VIEW STATUS</Text>
-                         </TouchableOpacity>
-                      ) : isWithinWindow ? (
-                        <>
-                          <TouchableOpacity onPress={() => handleRefundPress(item)} style={styles.refundBtn}>
-                            <Text style={styles.refundBtnText}>REQUEST REFUND</Text>
-                          </TouchableOpacity>
-                          <View style={styles.countdownRow}>
-                            <Clock size={10} color="#F59E0B" />
-                            <Text style={styles.countdownText}>
-                              {daysLeft === 1 ? 'Ends today' : `${daysLeft} days left`}
-                            </Text>
-                          </View>
-                        </>
-                      ) : (
-                        <Text style={styles.expiredLabel}>Refund Window Closed</Text>
-                      )}
-                    </View>
+              <View style={styles.cardActions}>
+                <View style={{ flex: 1, flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity 
+                    style={styles.invoiceButton}
+                    onPress={() => handleDownloadInvoice(item._id)}
+                  >
+                    <Ionicons name="document-text-outline" size={14} color="#666" />
+                    <Text style={styles.invoiceButtonText}>INVOICE</Text>
+                  </TouchableOpacity>
+
+                  {item.status === 'delivered' && !item.refundStatus && isWithinWindow && (
+                    <TouchableOpacity 
+                      style={styles.refundButton}
+                      onPress={() => handleRefundPress(item)}
+                    >
+                      <Text style={styles.refundButtonText}>REFUND</Text>
+                    </TouchableOpacity>
                   )}
-                  <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
+
+                  {item.refundStatus && (
+                    <TouchableOpacity 
+                      onPress={() => handleRefundPress(item)} 
+                      style={[styles.refundButton, { backgroundColor: '#FAFAFA', borderWidth: 1, borderColor: '#EEE' }]}
+                    >
+                       <Text style={[styles.refundButtonText, { color: '#888' }]}>STATUS</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+
+                {item.status === 'delivered' && !item.refundStatus && isWithinWindow && (
+                  <View style={styles.countdownRow}>
+                    <Clock size={10} color="#F59E0B" />
+                    <Text style={styles.countdownText}>
+                      {daysLeft === 1 ? 'Ends today' : `${daysLeft} days left`}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
-          );
+          );;
         }}
       />
 
@@ -547,41 +549,47 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_400Regular',
     marginTop: 2,
   },
-  orderBottom: {
+  cardActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 14,
-    paddingTop: 14,
+    marginTop: 15,
+    paddingTop: 15,
     borderTopWidth: 1,
-    borderTopColor: '#F8F8F8',
+    borderTopColor: '#f0f0f0',
   },
-  orderTotal: {
-    fontSize: 16,
-    color: '#000',
-    fontFamily: 'CormorantGaramond_700Bold',
-  },
-  refundBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#FFF',
+  invoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#000',
+    borderColor: '#eee',
   },
-  refundRequestedBtn: {
-    borderColor: '#EEE',
-    backgroundColor: '#FAFAFA',
-  },
-  refundBtnText: {
+  invoiceButtonText: {
+    color: '#666',
     fontSize: 10,
-    color: '#000',
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginLeft: 6,
     fontFamily: 'CormorantGaramond_700Bold',
-    letterSpacing: 1.5,
+  },
+  refundButton: {
+    backgroundColor: '#000',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  refundButtonText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    fontFamily: 'CormorantGaramond_700Bold',
   },
   countdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
     gap: 4,
   },
   countdownText: {

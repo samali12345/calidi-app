@@ -4,6 +4,7 @@ const { protectJWT } = require('../middleware/authJWT');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const mongoose = require('mongoose');
+const { generateInvoiceHTML } = require('../services/invoiceService');
 
 // ─── GET /api/mobile/me ────────────────────────────────────────────────────
 router.get('/me', protectJWT, (req, res) => {
@@ -51,10 +52,23 @@ router.get('/orders', protectJWT, async (req, res) => {
   }
 });
 
+// ─── GET /api/mobile/orders/:id/invoice ──────────────────────────────────────
+router.get('/orders/:id/invoice', protectJWT, async (req, res) => {
+  try {
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!order) return res.status(404).send('<h1>Order not found</h1>');
+
+    const html = generateInvoiceHTML(order);
+    res.send(html);
+  } catch (e) {
+    res.status(500).send('<h1>Error generating invoice</h1>');
+  }
+});
+
 // ─── POST /api/mobile/orders ── place order ────────────────────────────────
 router.post('/orders', protectJWT, async (req, res) => {
   try {
-    const { items, shippingAddress, deliveryMethod = 'standard' } = req.body;
+    const { items, shippingAddress, deliveryMethod = 'standard', paymentMethod } = req.body;
 
     if (!items || !items.length) {
       return res.status(400).json({ error: 'No items provided' });
