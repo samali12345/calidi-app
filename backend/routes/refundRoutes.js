@@ -9,7 +9,7 @@ const Order = require("../models/Order");
 router.post("/refunds/request/:id", protectJWT, async (req, res) => {
   try {
     const { id: orderId } = req.params;
-    const { reason } = req.body;
+    const { reason, reasonCategory, images } = req.body;
     
     // Check if order exists and belongs to user
     const order = await Order.findOne({ orderId, userId: req.user._id });
@@ -25,8 +25,10 @@ router.post("/refunds/request/:id", protectJWT, async (req, res) => {
 
     const refund = new Refund({
       orderId,
-      userId: req.user.uid,
+      userId: req.user._id,
       reason,
+      reasonCategory: reasonCategory || "Other",
+      images: images || [],
       amount: order.total,
       status: "pending"
     });

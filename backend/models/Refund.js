@@ -5,6 +5,8 @@ const refundSchema = new mongoose.Schema(
     orderId: { type: String, required: true },
     userId: { type: String, required: true },
     reason: { type: String, required: true },
+    reasonCategory: { type: String, default: "Other" },
+    images: [{ type: String }],
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],

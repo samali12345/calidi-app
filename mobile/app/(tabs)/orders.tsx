@@ -1,21 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { Package, ChevronRight, ShoppingBag, X } from 'lucide-react-native';
+import { Package, ChevronRight, ShoppingBag, X, Info, Image as ImageIcon, CheckCircle2 } from 'lucide-react-native';
 
 interface Order {
   _id: string;
-  orderId: string; // The human-readable ID needed for refunds
+  orderId: string;
   createdAt: string;
   status: string;
   total: number;
   items: Array<{ name: string; quantity: number; price: number }>;
+  refundStatus?: string | null;
+  refundReason?: string | null;
+  adminComment?: string | null;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -26,15 +29,35 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: '#EF4444',
 };
 
+const REFUND_STATUS_COLOR: Record<string, string> = {
+  pending: '#D97706',
+  approved: '#059669',
+  rejected: '#DC2626',
+};
+
+const QUICK_REASONS = [
+  'Damaged Product',
+  'Wrong Size Sent',
+  'Wrong Item Delivered',
+  'Quality Not as Expected',
+  'Missing Items',
+  'Changed my Mind'
+];
+
 export default function OrdersScreen() {
   const { user, token } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Refund Modal State
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [selectedReasonCat, setSelectedReasonCat] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -62,56 +85,50 @@ export default function OrdersScreen() {
     fetchOrders();
   };
 
-  const handleRefundPress = async (orderId: string) => {
-    try {
-      // Check if refund already exists using the human-readable orderId
-      const res = await axios.get(`${API_BASE_URL}/refunds/status/${orderId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const statusMsg = `Your refund is currently: ${res.data.status.toUpperCase()}\n\nReason: ${res.data.reason}\n${res.data.adminComment ? `Admin: ${res.data.adminComment}` : ''}`;
-      
-      if (Platform.OS === 'web') {
-        window.alert(statusMsg);
-      } else {
-        Alert.alert('Refund Status', statusMsg);
-      }
-    } catch (e: any) {
-      if (e.response && e.response.status === 404) {
-        // No refund requested yet, open modal
-        setSelectedOrderId(orderId);
-        setRefundReason('');
-        setRefundModalVisible(true);
-      } else {
-        const errorMsg = 'Failed to check refund status';
-        if (Platform.OS === 'web') window.alert(errorMsg);
-        else Alert.alert('Error', errorMsg);
-      }
+  const handleRefundPress = (order: Order) => {
+    if (order.refundStatus) {
+      const statusMsg = `Your refund is: ${order.refundStatus.toUpperCase()}\n\nReason: ${order.refundReason}\n${order.adminComment ? `Admin: ${order.adminComment}` : ''}`;
+      if (Platform.OS === 'web') window.alert(statusMsg);
+      else Alert.alert('Refund Status', statusMsg);
+      return;
     }
+
+    setSelectedOrderId(order.orderId);
+    setRefundReason('');
+    setSelectedReasonCat('');
+    setImageUrl('');
+    setRefundModalVisible(true);
   };
 
   const submitRefund = async () => {
-    if (!refundReason.trim()) {
-      if (Platform.OS === 'web') window.alert('Please provide a reason');
-      else Alert.alert('Error', 'Please provide a reason');
+    const finalReason = selectedReasonCat ? `[${selectedReasonCat}] ${refundReason}` : refundReason;
+    
+    if (!finalReason.trim()) {
+      const msg = 'Please select a reason or provide a description';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Error', msg);
       return;
     }
     
     setRefundSubmitting(true);
     try {
       await axios.post(`${API_BASE_URL}/refunds/request/${selectedOrderId}`, 
-        { reason: refundReason },
+        { 
+          reason: finalReason,
+          reasonCategory: selectedReasonCat || 'Other',
+          images: imageUrl ? [imageUrl] : []
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      if (Platform.OS === 'web') {
-        window.alert('Refund request submitted successfully');
-      } else {
-        Alert.alert('Success', 'Refund request submitted successfully');
-      }
+      const successMsg = 'Refund request submitted successfully. Our team will review it within 24-48 hours.';
+      if (Platform.OS === 'web') window.alert(successMsg);
+      else Alert.alert('Success', successMsg);
+      
       setRefundModalVisible(false);
+      fetchOrders(); // Refresh list to show new status
     } catch (e: any) {
-      const errorMsg = e.response?.data?.error || 'Failed to submit refund request';
+      const errorMsg = e.response?.data?.error || e.message || 'Failed to submit refund request';
       if (Platform.OS === 'web') window.alert(errorMsg);
       else Alert.alert('Error', errorMsg);
     } finally {
@@ -176,12 +193,11 @@ export default function OrdersScreen() {
         }
         renderItem={({ item }) => {
           const statusColor = STATUS_COLOR[item.status] || '#888';
+          const refundColor = item.refundStatus ? REFUND_STATUS_COLOR[item.refundStatus] : null;
           const date = new Date(item.createdAt).toLocaleDateString('en-US', {
             day: 'numeric', month: 'short', year: 'numeric'
           });
-          // Use orderId if available, fallback to shortened _id
           const displayId = item.orderId || `#${item._id.slice(-8).toUpperCase()}`;
-          const rawId = item.orderId || item._id;
 
           return (
             <View style={styles.orderCard}>
@@ -190,13 +206,24 @@ export default function OrdersScreen() {
                   <Text style={styles.orderId}>{displayId}</Text>
                   <Text style={styles.orderDate}>{date}</Text>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
-                  <Text style={[styles.statusText, { color: statusColor }]}>
-                    {item.status.toUpperCase()}
-                  </Text>
+                <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+                    <Text style={[styles.statusText, { color: statusColor }]}>
+                      {item.status.toUpperCase()}
+                    </Text>
+                  </View>
+                  {item.refundStatus && (
+                    <View style={[styles.statusBadge, { backgroundColor: refundColor + '15', borderStyle: 'dashed', borderWidth: 0.5, borderColor: refundColor }]}>
+                      <Text style={[styles.statusText, { color: refundColor, fontSize: 8 }]}>
+                        REFUND: {item.refundStatus.toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
+              
               <View style={styles.divider} />
+              
               {item.items.slice(0, 2).map((it, idx) => (
                 <Text key={idx} style={styles.itemRow} numberOfLines={1}>
                   {it.quantity}× {it.name}
@@ -205,12 +232,18 @@ export default function OrdersScreen() {
               {item.items.length > 2 && (
                 <Text style={styles.moreItems}>+{item.items.length - 2} more items</Text>
               )}
+              
               <View style={styles.orderBottom}>
                 <Text style={styles.orderTotal}>Rs. {item.total?.toLocaleString()}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   {item.status !== 'pending' && item.status !== 'cancelled' && (
-                    <TouchableOpacity onPress={() => handleRefundPress(rawId)} style={styles.refundBtn}>
-                      <Text style={styles.refundBtnText}>REFUND</Text>
+                    <TouchableOpacity 
+                      onPress={() => handleRefundPress(item)} 
+                      style={[styles.refundBtn, item.refundStatus ? styles.refundRequestedBtn : null]}
+                    >
+                      <Text style={[styles.refundBtnText, item.refundStatus ? {color: '#888'} : null]}>
+                        {item.refundStatus ? 'VIEW REFUND' : 'REQUEST REFUND'}
+                      </Text>
                     </TouchableOpacity>
                   )}
                   <ChevronRight size={18} color="#CCC" strokeWidth={1.5} />
@@ -221,37 +254,78 @@ export default function OrdersScreen() {
         }}
       />
 
-      <Modal visible={refundModalVisible} transparent animationType="fade">
+      <Modal visible={refundModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>REQUEST REFUND</Text>
-              <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
-                <X size={24} color="#000" />
+              <Text style={styles.modalTitle}>RETURN & REFUND</Text>
+              <TouchableOpacity onPress={() => setRefundModalVisible(false)} style={styles.closeBtn}>
+                <X size={22} color="#000" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Order {selectedOrderId}</Text>
             
-            <TextInput
-              style={styles.textInput}
-              placeholder="Please provide a detailed reason for your refund..."
-              multiline
-              numberOfLines={4}
-              value={refundReason}
-              onChangeText={setRefundReason}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {/* Instructions */}
+              <View style={styles.instructionCard}>
+                <Info size={16} color="#3B82F6" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.instructionTitle}>How it works</Text>
+                  <Text style={styles.instructionText}>
+                    Select a reason, provide details, and attach proof. Our team will review your request and process the refund to your original payment method.
+                  </Text>
+                </View>
+              </View>
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, refundSubmitting && { opacity: 0.7 }]} 
-              onPress={submitRefund}
-              disabled={refundSubmitting}
-            >
-              {refundSubmitting ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.submitBtnText}>SUBMIT REQUEST</Text>
-              )}
-            </TouchableOpacity>
+              <Text style={styles.modalLabel}>SELECT REASON</Text>
+              <View style={styles.reasonGrid}>
+                {QUICK_REASONS.map(reason => (
+                  <TouchableOpacity 
+                    key={reason} 
+                    style={[styles.reasonChip, selectedReasonCat === reason && styles.selectedChip]}
+                    onPress={() => setSelectedReasonCat(reason)}
+                  >
+                    <Text style={[styles.reasonChipText, selectedReasonCat === reason && styles.selectedChipText]}>
+                      {reason}
+                    </Text>
+                    {selectedReasonCat === reason && <CheckCircle2 size={12} color="#FFF" style={{ marginLeft: 4 }} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <Text style={styles.modalLabel}>ADDITIONAL DETAILS</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Tell us more about the issue..."
+                multiline
+                numberOfLines={4}
+                value={refundReason}
+                onChangeText={setRefundReason}
+              />
+
+              <Text style={styles.modalLabel}>ATTACH PROOF (OPTIONAL)</Text>
+              <View style={styles.imageInputRow}>
+                <ImageIcon size={20} color="#AAA" />
+                <TextInput
+                  style={styles.imageUrlInput}
+                  placeholder="Paste image URL here..."
+                  value={imageUrl}
+                  onChangeText={setImageUrl}
+                />
+              </View>
+              <Text style={styles.imageHint}>Please provide a URL to an image showing the issue.</Text>
+
+              <TouchableOpacity 
+                style={[styles.submitBtn, refundSubmitting && { opacity: 0.7 }]} 
+                onPress={submitRefund}
+                disabled={refundSubmitting}
+              >
+                {refundSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>SUBMIT REQUEST</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -266,7 +340,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     backgroundColor: '#FAF9F6',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
@@ -312,15 +386,20 @@ const styles = StyleSheet.create({
   orderCard: {
     backgroundColor: '#FFF',
     padding: 18,
-    marginBottom: 12,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: '#EFEFEF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
   orderTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   orderId: {
     fontSize: 14,
@@ -337,19 +416,19 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 2,
   },
   statusText: {
-    fontSize: 10,
-    letterSpacing: 1,
+    fontSize: 9,
+    letterSpacing: 1.2,
     fontFamily: 'CormorantGaramond_700Bold',
   },
-  divider: { height: 1, backgroundColor: '#F5F5F5', marginBottom: 12 },
+  divider: { height: 1, backgroundColor: '#F8F8F8', marginBottom: 14 },
   itemRow: {
     fontSize: 13,
     color: '#555',
     fontFamily: 'CormorantGaramond_400Regular',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   moreItems: {
     fontSize: 12,
@@ -361,10 +440,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: '#F8F8F8',
   },
   orderTotal: {
     fontSize: 16,
@@ -372,68 +451,122 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_700Bold',
   },
   refundBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: '#DC2626',
-    borderRadius: 4,
+    borderColor: '#000',
+  },
+  refundRequestedBtn: {
+    borderColor: '#EEE',
+    backgroundColor: '#FAFAFA',
   },
   refundBtnText: {
     fontSize: 10,
-    color: '#DC2626',
+    color: '#000',
     fontFamily: 'CormorantGaramond_700Bold',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#FFF',
-    padding: 20,
-    borderRadius: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: 'PlayfairDisplay_700Bold',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+    color: '#000',
   },
-  modalSubtitle: {
-    fontSize: 12,
+  closeBtn: { padding: 4 },
+  instructionCard: {
+    backgroundColor: '#EFF6FF',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  instructionTitle: { fontSize: 12, color: '#1E40AF', fontFamily: 'CormorantGaramond_700Bold', marginBottom: 4 },
+  instructionText: { fontSize: 11, color: '#3B82F6', fontFamily: 'CormorantGaramond_400Regular', lineHeight: 16 },
+  modalLabel: {
+    fontSize: 10,
     color: '#888',
-    fontFamily: 'CormorantGaramond_500Medium',
-    marginBottom: 16,
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1.5,
+    marginBottom: 12,
   },
+  reasonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  reasonChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    backgroundColor: '#FAFAFA',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedChip: {
+    backgroundColor: '#000',
+    borderColor: '#000',
+  },
+  reasonChipText: { fontSize: 12, color: '#555', fontFamily: 'CormorantGaramond_500Medium' },
+  selectedChipText: { color: '#FFF' },
   textInput: {
     borderWidth: 1,
     borderColor: '#EFEFEF',
-    borderRadius: 4,
-    padding: 12,
-    height: 100,
-    textAlignVertical: 'top',
-    fontFamily: 'CormorantGaramond_400Regular',
+    padding: 14,
     fontSize: 14,
+    fontFamily: 'CormorantGaramond_500Medium',
+    minHeight: 100,
+    textAlignVertical: 'top',
+    backgroundColor: '#FAFAFA',
     marginBottom: 20,
   },
+  imageInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    paddingHorizontal: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  imageUrlInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 13,
+    fontFamily: 'CormorantGaramond_400Regular',
+  },
+  imageHint: { fontSize: 10, color: '#AAA', marginTop: 6, fontFamily: 'CormorantGaramond_400Regular', marginBottom: 24 },
   submitBtn: {
     backgroundColor: '#000',
-    padding: 14,
+    padding: 16,
     alignItems: 'center',
-    borderRadius: 4,
+    marginTop: 10,
   },
   submitBtnText: {
     color: '#FFF',
     fontSize: 12,
     fontFamily: 'CormorantGaramond_700Bold',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
 });

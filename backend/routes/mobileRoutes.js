@@ -28,8 +28,24 @@ router.put('/me', protectJWT, async (req, res) => {
 // ─── GET /api/mobile/orders ────────────────────────────────────────────────
 router.get('/orders', protectJWT, async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(50);
-    res.json(orders);
+    const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
+    
+    // Fetch refunds for these orders
+    const orderIds = orders.map(o => o.orderId);
+    const refunds = await mongoose.model('Refund').find({ orderId: { $in: orderIds } }).lean();
+    
+    // Attach refund status to each order
+    const ordersWithRefunds = orders.map(order => {
+      const refund = refunds.find(r => r.orderId === order.orderId);
+      return {
+        ...order,
+        refundStatus: refund ? refund.status : null,
+        refundReason: refund ? refund.reason : null,
+        adminComment: refund ? refund.adminComment : null
+      };
+    });
+
+    res.json(ordersWithRefunds);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -1,19 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, FlatList, TouchableOpacity, View, Text,
-  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform
+  SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, ScrollView
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { ChevronLeft, CheckCircle, XCircle, X } from 'lucide-react-native';
+import { ChevronLeft, CheckCircle, XCircle, X, ExternalLink, Image as ImageIcon } from 'lucide-react-native';
 
 interface Refund {
   _id: string;
   orderId: string;
   userId: string;
   reason: string;
+  reasonCategory?: string;
+  images?: string[];
   amount: number;
   status: string;
   adminComment: string;
@@ -46,6 +48,7 @@ export default function AdminRefundsScreen() {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
+      console.log('[Admin Refunds] Fetched:', response.data.length);
       setRefunds(response.data);
     } catch (e: any) {
       console.error('[Admin] Fetch refunds error:', e.message);
@@ -78,11 +81,9 @@ export default function AdminRefundsScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      if (Platform.OS === 'web') {
-        window.alert(`Refund ${newStatus} successfully`);
-      } else {
-        Alert.alert('Success', `Refund ${newStatus} successfully`);
-      }
+      const successMsg = `Refund ${newStatus} successfully`;
+      if (Platform.OS === 'web') window.alert(successMsg);
+      else Alert.alert('Success', successMsg);
       
       setActionModalVisible(false);
       fetchRefunds();
@@ -139,7 +140,10 @@ export default function AdminRefundsScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Text style={styles.orderId}>ORDER ID: {item.orderId.slice(-8).toUpperCase()}</Text>
+              <View>
+                <Text style={styles.orderId}>ORDER {item.orderId.toUpperCase()}</Text>
+                <Text style={styles.dateText}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+              </View>
               <View style={[styles.statusBadge, item.status === 'pending' ? styles.statusPending : item.status === 'approved' ? styles.statusApproved : styles.statusRejected]}>
                 <Text style={[styles.statusText, item.status === 'pending' ? {color:'#D97706'} : item.status === 'approved' ? {color:'#059669'} : {color:'#DC2626'}]}>
                   {item.status.toUpperCase()}
@@ -150,6 +154,11 @@ export default function AdminRefundsScreen() {
             <View style={styles.divider} />
             
             <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>CATEGORY</Text>
+              <Text style={[styles.infoValue, {fontWeight: 'bold', color: '#000'}]}>{item.reasonCategory || 'OTHER'}</Text>
+            </View>
+            
+            <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>AMOUNT</Text>
               <Text style={styles.infoValue}>Rs. {item.amount.toLocaleString()}</Text>
             </View>
@@ -158,11 +167,25 @@ export default function AdminRefundsScreen() {
               <Text style={styles.infoLabel}>REASON</Text>
               <Text style={styles.infoValue}>{item.reason}</Text>
             </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>DATE</Text>
-              <Text style={styles.infoValue}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-            </View>
+
+            {/* Evidence Images */}
+            {item.images && item.images.length > 0 && (
+              <View style={styles.evidenceSection}>
+                <Text style={styles.infoLabel}>EVIDENCE</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                  {item.images.map((img, idx) => (
+                    <TouchableOpacity key={idx} onPress={() => {
+                      if (Platform.OS === 'web') window.open(img, '_blank');
+                    }} style={styles.evidenceThumb}>
+                      <Image source={{ uri: img }} style={styles.thumbImage} resizeMode="cover" />
+                      <View style={styles.expandIcon}>
+                        <ExternalLink size={10} color="#FFF" />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {item.adminComment ? (
               <View style={styles.commentBox}>
@@ -248,7 +271,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     backgroundColor: '#FAF9F6',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
@@ -272,6 +295,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#EFEFEF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -285,6 +313,7 @@ const styles = StyleSheet.create({
     fontFamily: 'CormorantGaramond_700Bold',
     letterSpacing: 0.5,
   },
+  dateText: { fontSize: 10, color: '#AAA', fontFamily: 'CormorantGaramond_400Regular', marginTop: 2 },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -298,15 +327,19 @@ const styles = StyleSheet.create({
   statusPending: { backgroundColor: '#FEF3C7' },
   statusApproved: { backgroundColor: '#D1FAE5' },
   statusRejected: { backgroundColor: '#FEE2E2' },
-  divider: { height: 1, backgroundColor: '#F5F5F5', marginBottom: 12 },
+  divider: { height: 1, backgroundColor: '#F8F8F8', marginBottom: 12 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   infoLabel: { fontSize: 10, color: '#AAA', fontFamily: 'CormorantGaramond_700Bold', letterSpacing: 1 },
   infoValue: { fontSize: 13, color: '#333', fontFamily: 'CormorantGaramond_500Medium', flex: 1, textAlign: 'right', marginLeft: 20 },
+  evidenceSection: { marginTop: 12, marginBottom: 4 },
+  evidenceThumb: { width: 60, height: 60, marginRight: 10, borderRadius: 4, overflow: 'hidden', position: 'relative' },
+  thumbImage: { width: '100%', height: '100%' },
+  expandIcon: { position: 'absolute', right: 4, bottom: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 2, padding: 2 },
   commentBox: {
-    marginTop: 12,
-    padding: 10,
+    marginTop: 14,
+    padding: 12,
     backgroundColor: '#F9F9F9',
-    borderLeftWidth: 2,
+    borderLeftWidth: 3,
     borderLeftColor: '#DDD',
   },
   commentLabel: { fontSize: 9, color: '#888', fontFamily: 'CormorantGaramond_700Bold', marginBottom: 4 },
@@ -314,10 +347,10 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 18,
+    paddingTop: 18,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: '#F8F8F8',
   },
   btn: {
     flex: 1,
@@ -344,7 +377,7 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: '#FFF',
     padding: 24,
-    borderRadius: 2,
+    borderRadius: 4,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -367,15 +400,16 @@ const styles = StyleSheet.create({
   textInput: {
     borderWidth: 1,
     borderColor: '#EFEFEF',
-    padding: 12,
+    padding: 14,
     fontSize: 14,
     fontFamily: 'CormorantGaramond_500Medium',
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
     marginBottom: 20,
+    backgroundColor: '#FAFAFA',
   },
   submitBtn: {
-    padding: 14,
+    padding: 16,
     alignItems: 'center',
   },
   submitBtnText: {
