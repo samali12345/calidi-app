@@ -207,7 +207,7 @@ exports.createProduct = async (req, res) => {
       category: category || "",
       stock: parseInt(stock) || 50,
       lowStockThreshold: parseInt(lowStockThreshold) || 10,
-      image_id: imageId,
+      image_id: req.body.image_id || imageId,
       aiIndexed: false,
       aiIndexedAt: null,
       aiIndexError: "",
@@ -230,7 +230,7 @@ exports.updateProduct = async (req, res) => {
   try {
     const p_id = Number(req.params.p_id);
     const updates = {};
-    const allowed = ["name", "description", "brand", "colour", "price", "category", "stock", "lowStockThreshold"];
+    const allowed = ["name", "description", "brand", "colour", "price", "category", "stock", "lowStockThreshold", "image_id"];
 
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
