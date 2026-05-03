@@ -822,3 +822,41 @@ exports.restockSingleProduct = async (req, res) => {
     res.status(500).json({ error: "Failed to restock product" });
   }
 };
+
+// GET /api/admin/refunds
+exports.getAdminRefunds = async (req, res) => {
+  try {
+    const Refund = mongoose.model("Refund");
+    const { status, search } = req.query;
+    const filter = {};
+    if (status && status !== "all") filter.status = status;
+    if (search) {
+      filter.$or = [
+        { orderId: { $regex: search, $options: "i" } },
+        { userEmail: { $regex: search, $options: "i" } }
+      ];
+    }
+    const refunds = await Refund.find(filter).sort({ createdAt: -1 });
+    res.json(refunds);
+  } catch (err) {
+    console.error("Admin refunds error:", err);
+    res.status(500).json({ error: "Failed to fetch refunds" });
+  }
+};
+
+// PUT /api/admin/refunds/:id
+exports.updateRefundStatus = async (req, res) => {
+  try {
+    const Refund = mongoose.model("Refund");
+    const { status, adminComment } = req.body;
+    const refund = await Refund.findByIdAndUpdate(
+      req.params.id,
+      { status, adminComment, processedAt: new Date() },
+      { new: true }
+    );
+    if (!refund) return res.status(404).json({ error: "Refund request not found" });
+    res.json(refund);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update refund status" });
+  }
+};
