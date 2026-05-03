@@ -38,10 +38,17 @@ export default function AdminProductsScreen() {
 
   const fetchProducts = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mobile/admin/products`, {
+      const response = await axios.get(`${API_BASE_URL}/admin/products`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setProducts(response.data);
+      // Handle both array (legacy) and object (paginated) responses
+      if (Array.isArray(response.data)) {
+        setProducts(response.data);
+      } else if (response.data.products) {
+        setProducts(response.data.products);
+      } else {
+        setProducts([]);
+      }
     } catch (e: any) {
       console.error('[Admin Products] Error:', e.message);
     } finally {
@@ -154,11 +161,11 @@ export default function AdminProductsScreen() {
       };
 
       if (isEditing && editingPid) {
-        await axios.put(`${API_BASE_URL}/mobile/admin/products/${editingPid}`, payload, {
+        await axios.put(`${API_BASE_URL}/admin/products/${editingPid}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post(`${API_BASE_URL}/mobile/admin/products`, payload, {
+        await axios.post(`${API_BASE_URL}/admin/products`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
@@ -177,7 +184,7 @@ export default function AdminProductsScreen() {
   const deleteProduct = (pid: number) => {
     const performDelete = async () => {
       try {
-        await axios.delete(`${API_BASE_URL}/mobile/admin/products/${pid}`, {
+        await axios.delete(`${API_BASE_URL}/admin/products/${pid}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         fetchProducts();
