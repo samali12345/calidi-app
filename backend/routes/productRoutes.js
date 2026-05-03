@@ -100,7 +100,20 @@ router.get('/', async (req, res) => {
 // Route for: GET /api/products/image/:p_id  (serves the actual image binary)
 router.get('/image/:p_id', async (req, res) => {
   try {
-    const p_id = Number(req.params.p_id);
+    const p_id_param = req.params.p_id;
+    
+    // If it's a 24-char hex string, it might be a direct files_id (for refunds/evidence)
+    if (p_id_param.length === 24 && /^[0-9a-fA-F]+$/.test(p_id_param)) {
+      const imageBuffer = await getImageBuffer(p_id_param);
+      if (imageBuffer) {
+        res.set('Content-Type', 'image/jpeg');
+        res.set('Cache-Control', 'public, max-age=86400');
+        return res.send(imageBuffer);
+      }
+    }
+
+    // Fallback to traditional p_id lookup for products
+    const p_id = Number(p_id_param);
     const product = await mongoose.connection.db.collection('products').findOne({ p_id });
     if (!product || !product.image_id) return res.status(404).send('Image not found');
 
