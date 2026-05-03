@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_BASE_URL } from '../../constants/Config';
-import { ChevronLeft, CheckCircle, XCircle, X, ExternalLink, Image as ImageIcon } from 'lucide-react-native';
+import { ChevronLeft, CheckCircle, XCircle, X, ExternalLink, Search, Filter, AlertCircle } from 'lucide-react-native';
 
 interface Refund {
   _id: string;
@@ -25,8 +25,14 @@ interface Refund {
 export default function AdminRefundsScreen() {
   const { token, isAdmin } = useAuth();
   const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [filteredRefunds, setFilteredRefunds] = useState<Refund[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filtering & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   
   // Action Modal State
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -38,24 +44,59 @@ export default function AdminRefundsScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    if (isAdmin && token) fetchRefunds();
-    else if (!loading) setLoading(false);
-  }, [isAdmin, token]);
+    if (token) fetchRefunds();
+    else {
+      setLoading(false);
+      setError("No authentication token found. Please sign in.");
+    }
+  }, [token]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [refunds, searchQuery, statusFilter]);
 
   const fetchRefunds = async () => {
     try {
+      setError(null);
+      console.log('[Admin Refunds] Fetching from:', `${API_BASE_URL}/admin/refunds`);
       const response = await axios.get(`${API_BASE_URL}/admin/refunds`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
-      console.log('[Admin Refunds] Fetched:', response.data.length);
-      setRefunds(response.data);
+      
+      if (Array.isArray(response.data)) {
+        setRefunds(response.data);
+      } else {
+        console.error('[Admin Refunds] Invalid data format:', response.data);
+        setError("Received invalid data format from server.");
+      }
     } catch (e: any) {
-      console.error('[Admin] Fetch refunds error:', e.message);
+      console.error('[Admin] Fetch refunds error:', e.response?.data || e.message);
+      const msg = e.response?.data?.error || e.message || 'Failed to fetch refunds';
+      setError(`Server Error: ${msg}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const applyFilters = () => {
+    let result = [...refunds];
+    
+    if (statusFilter !== 'all') {
+      result = result.filter(r => r.status === statusFilter);
+    }
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        r.orderId.toLowerCase().includes(q) || 
+        r.reason.toLowerCase().includes(q) ||
+        (r.reasonCategory && r.reasonCategory.toLowerCase().includes(q))
+      );
+    }
+    
+    setFilteredRefunds(result);
   };
 
   const onRefresh = () => {
@@ -96,21 +137,12 @@ export default function AdminRefundsScreen() {
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>Access Restricted</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading requests...</Text>
         </View>
       </SafeAreaView>
     );
@@ -123,18 +155,60 @@ export default function AdminRefundsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>MANAGE REFUNDS</Text>
+        <Text style={styles.headerTitle}>REFUND MANAGER</Text>
         <View style={{ width: 24 }} />
       </View>
 
+      {/* ERROR BANNER */}
+      {error && (
+        <View style={styles.errorBanner}>
+          <AlertCircle size={16} color="#DC2626" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={fetchRefunds} style={styles.retryBtn}>
+            <Text style={styles.retryText}>RETRY</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* SEARCH & FILTER BAR */}
+      <View style={styles.filterBar}>
+        <View style={styles.searchContainer}>
+          <Search size={16} color="#AAA" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by Order ID or Reason..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          {['all', 'pending', 'approved', 'rejected'].map((stat) => (
+            <TouchableOpacity 
+              key={stat}
+              onPress={() => setStatusFilter(stat as any)}
+              style={[styles.filterChip, statusFilter === stat && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterChipText, statusFilter === stat && styles.filterChipTextActive]}>
+                {stat.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       <FlatList
-        data={refunds}
+        data={filteredRefunds}
         keyExtractor={(item) => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={styles.emptyText}>No refund requests found</Text>
+            <Filter size={48} color="#EEE" strokeWidth={1} />
+            <Text style={styles.emptyText}>No matching refund requests found</Text>
+            <TouchableOpacity onPress={() => {setSearchQuery(''); setStatusFilter('all')}}>
+              <Text style={styles.clearText}>Clear all filters</Text>
+            </TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => (
@@ -171,7 +245,7 @@ export default function AdminRefundsScreen() {
             {/* Evidence Images */}
             {item.images && item.images.length > 0 && (
               <View style={styles.evidenceSection}>
-                <Text style={styles.infoLabel}>EVIDENCE</Text>
+                <Text style={styles.infoLabel}>EVIDENCE PHOTOS</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                   {item.images.map((img, idx) => (
                     <TouchableOpacity key={idx} onPress={() => {
@@ -283,11 +357,90 @@ const styles = StyleSheet.create({
     fontFamily: 'PlayfairDisplay_600SemiBold',
     letterSpacing: 2,
   },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#DC2626',
+    fontFamily: 'CormorantGaramond_500Medium',
+  },
+  retryBtn: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 2,
+  },
+  retryText: {
+    fontSize: 9,
+    color: '#FFF',
+    fontFamily: 'CormorantGaramond_700Bold',
+  },
+  filterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9F9F9',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    fontFamily: 'CormorantGaramond_400Regular',
+  },
+  filterScroll: { flexDirection: 'row' },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EEE',
+    backgroundColor: '#FFF',
+  },
+  filterChipActive: {
+    backgroundColor: '#000',
+    borderColor: '#000',
+  },
+  filterChipText: {
+    fontSize: 9,
+    color: '#888',
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 1,
+  },
+  filterChipTextActive: {
+    color: '#FFF',
+  },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
+  loadingText: { marginTop: 12, fontSize: 12, color: '#888', fontFamily: 'CormorantGaramond_400Regular' },
   emptyText: {
     fontSize: 14,
     color: '#888',
     fontFamily: 'CormorantGaramond_500Medium',
+    marginTop: 12,
+  },
+  clearText: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontFamily: 'CormorantGaramond_700Bold',
+    marginTop: 10,
+    textDecorationLine: 'underline',
   },
   card: {
     backgroundColor: '#FFF',

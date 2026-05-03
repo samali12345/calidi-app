@@ -12,29 +12,34 @@ const Order = require("../models/Order");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 /**
- * Custom Middleware to allow both Firebase (protect) and Mobile JWT (protectJWT)
- * This ensures the admin panel works for both web admin and mobile/expo-web admin
+ * Robust Dual-Auth Middleware
  */
 const flexibleProtect = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    // Try JWT first (Mobile/Expo Web)
-    return protectJWT(req, res, next);
+    // If it looks like a JWT (Mobile/Expo Web)
+    return protectJWT(req, res, (err) => {
+      if (err) return protect(req, res, next); // Fallback to Firebase if JWT fails
+      next();
+    });
   }
-  // Fallback to Firebase (Web Dashboard)
   return protect(req, res, next);
 };
 
 // All admin routes require auth + admin role
+// We use flexibleProtect and then requireAdmin to ensure role: 'admin' is verified
 router.use(flexibleProtect, requireAdmin);
 
-// Refund Management (Added here for consolidation)
+// Refund Management
 router.get("/refunds", async (req, res) => {
   try {
-    const refunds = await Refund.find().sort({ createdAt: -1 });
-    res.json(refunds);
+    // Return ALL refunds to the admin
+    const refunds = await Refund.find({}).sort({ createdAt: -1 });
+    console.log(`[Admin API] Sending ${refunds.length} refund records`);
+    res.status(200).json(refunds);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch refunds" });
+    console.error("[Admin API] Fetch refunds error:", err);
+    res.status(500).json({ error: "Internal server error while fetching refunds" });
   }
 });
 
