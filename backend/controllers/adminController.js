@@ -306,8 +306,10 @@ exports.getOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    if (!["pending", "paid", "expired", "cancelled"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
+    const allowed = ["pending", "paid", "processing", "shipped", "delivered", "cancelled", "expired", "refunded"];
+    
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${allowed.join(", ")}` });
     }
 
     const order = await Order.findOne({ orderId: req.params.orderId });

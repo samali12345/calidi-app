@@ -22,10 +22,10 @@ export default function AdminOrdersScreen() {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mobile/admin/orders`, {
+      const response = await axios.get(`${API_BASE_URL}/admin/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrders(response.data);
+      setOrders(response.data.orders || []);
     } catch (e: any) {
       console.error('[Admin Orders] Error:', e.message);
       Alert.alert('Error', 'Failed to fetch admin orders');
@@ -42,22 +42,25 @@ export default function AdminOrdersScreen() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await axios.put(`${API_BASE_URL}/mobile/admin/orders/${orderId}`, { status: newStatus }, {
+      await axios.put(`${API_BASE_URL}/admin/orders/${orderId}/status`, { status: newStatus }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchOrders();
     } catch (e: any) {
-      Alert.alert('Error', 'Failed to update order status');
+      console.error('[Update Status] Error:', e.response?.data || e.message);
+      Alert.alert('Error', e.response?.data?.error || 'Failed to update order status');
     }
   };
 
   const showStatusMenu = (order: any) => {
     Alert.alert('Update Status', `Current status: ${order.status}`, [
-      { text: 'Pending', onPress: () => updateStatus(order._id, 'pending') },
-      { text: 'Processing', onPress: () => updateStatus(order._id, 'processing') },
-      { text: 'Shipped', onPress: () => updateStatus(order._id, 'shipped') },
-      { text: 'Delivered', onPress: () => updateStatus(order._id, 'delivered') },
-      { text: 'Cancelled', onPress: () => updateStatus(order._id, 'cancelled'), style: 'destructive' },
+      { text: 'Pending', onPress: () => updateStatus(order.orderId, 'pending') },
+      { text: 'Paid', onPress: () => updateStatus(order.orderId, 'paid') },
+      { text: 'Processing', onPress: () => updateStatus(order.orderId, 'processing') },
+      { text: 'Shipped', onPress: () => updateStatus(order.orderId, 'shipped') },
+      { text: 'Delivered', onPress: () => updateStatus(order.orderId, 'delivered') },
+      { text: 'Refunded', onPress: () => updateStatus(order.orderId, 'refunded') },
+      { text: 'Cancelled', onPress: () => updateStatus(order.orderId, 'cancelled'), style: 'destructive' },
       { text: 'Close', style: 'cancel' }
     ]);
   };
