@@ -91,7 +91,9 @@ export default function OrdersScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
+      const msg = 'Sorry, we need camera roll permissions to make this work!';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Permission Denied', msg);
       return;
     }
 
@@ -111,11 +113,19 @@ export default function OrdersScreen() {
     try {
       const formData = new FormData();
       const filename = uri.split('/').pop() || 'upload.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`;
-
-      // @ts-ignore
-      formData.append('image', { uri, name: filename, type });
+      
+      if (Platform.OS === 'web') {
+        // WEB SPECIFIC: Must convert URI to Blob
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        formData.append('image', blob, filename);
+      } else {
+        // MOBILE SPECIFIC
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+        // @ts-ignore
+        formData.append('image', { uri, name: filename, type });
+      }
 
       const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
         headers: {
@@ -125,8 +135,8 @@ export default function OrdersScreen() {
       });
 
       return response.data.url;
-    } catch (e) {
-      console.error('[Upload] Failed:', e);
+    } catch (e: any) {
+      console.error('[Upload] Failed:', e.response?.data || e.message);
       return null;
     }
   };
