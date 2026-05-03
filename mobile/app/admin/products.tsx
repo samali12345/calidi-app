@@ -173,9 +173,10 @@ export default function AdminProductsScreen() {
       setModalVisible(false);
       fetchProducts();
     } catch (e: any) {
-      const msg = e.response?.data?.error || 'Failed to save product';
-      if (Platform.OS === 'web') window.alert(msg);
-      else Alert.alert('Error', msg);
+      const errorMsg = e.response?.data?.error || e.response?.data?.message || e.message || 'Failed to save product';
+      console.error('[Admin Save Error]', errorMsg);
+      if (Platform.OS === 'web') window.alert('Error: ' + errorMsg);
+      else Alert.alert('Error', errorMsg);
     } finally {
       setSaving(false);
     }
