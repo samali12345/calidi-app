@@ -59,6 +59,30 @@ export default function AdminCustomersScreen() {
     );
   };
 
+  useEffect(() => {
+    if (isAdmin && token) fetchCustomers();
+  }, [isAdmin, token]);
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/mobile/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCustomers(response.data || []);
+    } catch (e: any) {
+      console.error('[Admin Customers] Error:', e.message);
+      Alert.alert('Error', 'Failed to fetch users');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchCustomers();
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
