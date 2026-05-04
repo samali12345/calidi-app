@@ -289,8 +289,8 @@ export default function OrdersScreen() {
           const isWithinWindow = timeLeft > 0;
           const daysLeft = Math.max(0, Math.ceil(timeLeft / (1000 * 60 * 60 * 24)));
 
-          // Check if order is eligible for refund (pending or delivered)
-          const canRequestRefund = currentStatus === 'delivered' || currentStatus === 'pending';
+          // Show refund button for all orders except cancelled
+          const canRequestRefund = currentStatus !== 'cancelled';
           // Check if order is not cancelled (show countdown for active orders)
           const isActiveOrder = currentStatus !== 'cancelled';
 
