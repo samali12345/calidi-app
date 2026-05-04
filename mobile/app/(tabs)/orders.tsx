@@ -30,6 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
   shipped: '#8B5CF6',
   delivered: '#10B981',
   cancelled: '#EF4444',
+  expired: '#9CA3AF',
   refunded: '#6B7280',
 };
 
@@ -273,18 +274,25 @@ export default function OrdersScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const statusColor = STATUS_COLOR[item.status] || '#888';
+          const currentStatus = (item.status || '').toLowerCase().trim();
+          const statusColor = STATUS_COLOR[currentStatus] || '#888';
           const date = new Date(item.createdAt).toLocaleDateString('en-US', {
             day: 'numeric', month: 'short', year: 'numeric'
           });
           const displayId = item.orderId || `#${item._id.slice(-8).toUpperCase()}`;
           
-          // Calculate Refund Expiry
+          // Calculate Refund Expiry (7-day window from order date)
           const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          const timeSinceOrder = Date.now() - new Date(item.createdAt).getTime();
+          const orderCreated = new Date(item.createdAt).getTime();
+          const timeSinceOrder = Date.now() - orderCreated;
           const timeLeft = sevenDaysInMs - timeSinceOrder;
           const isWithinWindow = timeLeft > 0;
-          const daysLeft = Math.ceil(timeLeft / (1000 * 60 * 60 * 24));
+          const daysLeft = Math.max(0, Math.ceil(timeLeft / (1000 * 60 * 60 * 24)));
+
+          // Check if order is eligible for refund (pending or delivered)
+          const canRequestRefund = currentStatus === 'delivered' || currentStatus === 'pending';
+          // Check if order is not cancelled (show countdown for active orders)
+          const isActiveOrder = currentStatus !== 'cancelled';
 
           return (
             <View style={styles.orderCard}>
@@ -294,15 +302,15 @@ export default function OrdersScreen() {
                   <Text style={styles.orderDate}>{date}</Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>
-                      {item.status.toUpperCase()}
-                    </Text>
+                  <Text style={[styles.statusText, { color: statusColor }]}>
+                    {(item.status || '').toUpperCase()}
+                  </Text>
                 </View>
               </View>
               
               <View style={styles.divider} />
               
-              {item.items.slice(0, 2).map((it, idx) => (
+              {item.items.slice(0, 2).map((it: any, idx: number) => (
                 <Text key={idx} style={styles.itemRow} numberOfLines={1}>
                   {it.quantity}× {it.name}
                 </Text>
@@ -311,8 +319,20 @@ export default function OrdersScreen() {
                 <Text style={styles.moreItems}>+{item.items.length - 2} more items</Text>
               )}
               
+              {/* Refund Deadline Countdown - visible for all active orders */}
+              {isActiveOrder && !item.refundStatus && (
+                <View style={styles.refundDeadlineBar}>
+                  <Clock size={12} color={isWithinWindow ? '#F59E0B' : '#CCC'} />
+                  <Text style={[styles.refundDeadlineText, !isWithinWindow && { color: '#BBB' }]}>
+                    {isWithinWindow
+                      ? `Refund available: ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`
+                      : 'Refund window expired'}
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.cardActions}>
-                <View style={{ flex: 1, flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   <TouchableOpacity 
                     style={styles.invoiceButton}
                     onPress={() => handleDownloadInvoice(item._id)}
@@ -321,7 +341,7 @@ export default function OrdersScreen() {
                     <Text style={styles.invoiceButtonText}>INVOICE</Text>
                   </TouchableOpacity>
 
-                  {item.status === 'delivered' && !item.refundStatus && isWithinWindow && (
+                  {canRequestRefund && !item.refundStatus && isWithinWindow && (
                     <TouchableOpacity 
                       style={styles.refundButton}
                       onPress={() => handleRefundPress(item)}
@@ -333,24 +353,17 @@ export default function OrdersScreen() {
                   {item.refundStatus && (
                     <TouchableOpacity 
                       onPress={() => handleRefundPress(item)} 
-                      style={[styles.refundButton, { backgroundColor: '#FAFAFA', borderWidth: 1, borderColor: '#EEE' }]}
+                      style={[styles.refundBadge, { backgroundColor: (REFUND_STATUS_COLOR[item.refundStatus] || '#888') + '15' }]}
                     >
-                       <Text style={[styles.refundButtonText, { color: '#888' }]}>STATUS</Text>
+                      <Text style={[styles.refundBadgeText, { color: REFUND_STATUS_COLOR[item.refundStatus] || '#888' }]}>
+                        REFUND {item.refundStatus.toUpperCase()}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-
-                {item.status === 'delivered' && !item.refundStatus && isWithinWindow && (
-                  <View style={styles.countdownRow}>
-                    <Clock size={10} color="#F59E0B" />
-                    <Text style={styles.countdownText}>
-                      {daysLeft === 1 ? 'Ends today' : `${daysLeft} days left`}
-                    </Text>
-                  </View>
-                )}
               </View>
             </View>
-          );;
+          );
         }}
       />
 
@@ -591,6 +604,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
     fontFamily: 'CormorantGaramond_700Bold',
+  },
+  refundDeadlineBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+    borderRadius: 4,
+  },
+  refundDeadlineText: {
+    fontSize: 11,
+    color: '#D97706',
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 0.3,
+  },
+  refundBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  refundBadgeText: {
+    fontSize: 9,
+    fontFamily: 'CormorantGaramond_700Bold',
+    letterSpacing: 0.5,
   },
   countdownRow: {
     flexDirection: 'row',

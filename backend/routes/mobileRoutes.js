@@ -228,6 +228,11 @@ router.put('/admin/orders/:id', protectJWT, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
     const { status } = req.body;
     
+    const allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${allowed.join(', ')}` });
+    }
+
     // Support finding by readable orderId or MongoDB _id
     let order = await Order.findOne({ orderId: req.params.id });
     if (!order && mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -236,11 +241,31 @@ router.put('/admin/orders/:id', protectJWT, async (req, res) => {
 
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
+    const previousStatus = order.status;
     order.status = status;
     await order.save();
+
+    // Auto-create refund record when order is cancelled
+    if (status === 'cancelled' && previousStatus !== 'cancelled') {
+      const Refund = mongoose.model('Refund');
+      const existingRefund = await Refund.findOne({ orderId: order.orderId });
+      if (!existingRefund) {
+        await Refund.create({
+          orderId: order.orderId,
+          userId: order.userId,
+          reason: 'Order cancelled by admin',
+          reasonCategory: 'Cancelled',
+          images: [],
+          amount: order.total,
+          status: 'approved',
+          adminComment: 'Auto-refund: Order was cancelled'
+        });
+      }
+    }
     
     res.json({ success: true, order });
   } catch (e) {
+    console.error('[Mobile Admin Order Update] Error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

@@ -218,14 +218,9 @@ export default function ProfileScreen() {
             onPress={() => Alert.alert('Wishlist', 'Feature coming soon!')}
           />
           <MenuItem 
-            icon={<Lock size={20} color="#333" strokeWidth={1.5} />} 
-            label="Change Password" 
-            onPress={() => router.push('/update-password')}
-          />
-          <MenuItem 
             icon={<Settings size={20} color="#333" strokeWidth={1.5} />} 
             label="Settings" 
-            onPress={() => Alert.alert('Settings', 'Feature coming soon!')}
+            onPress={() => router.push('/settings')}
           />
         </View>
 

@@ -306,13 +306,18 @@ exports.getOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const allowed = ["pending", "paid", "processing", "shipped", "delivered", "cancelled", "expired", "refunded"];
+    const allowed = ["pending", "processing", "shipped", "delivered", "cancelled"];
     
     if (!allowed.includes(status)) {
       return res.status(400).json({ error: `Invalid status. Must be one of: ${allowed.join(", ")}` });
     }
 
-    const order = await Order.findOne({ orderId: req.params.orderId });
+    // Support finding by readable orderId or MongoDB _id
+    let order = await Order.findOne({ orderId: req.params.orderId });
+    if (!order && mongoose.Types.ObjectId.isValid(req.params.orderId)) {
+      order = await Order.findById(req.params.orderId);
+    }
+
     if (!order) return res.status(404).json({ error: "Order not found" });
     const previousStatus = order.status;
 

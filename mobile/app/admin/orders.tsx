@@ -22,10 +22,11 @@ export default function AdminOrdersScreen() {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/orders`, {
+      const response = await axios.get(`${API_BASE_URL}/mobile/admin/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrders(response.data.orders || []);
+      const data = response.data;
+      setOrders(Array.isArray(data) ? data : data.orders || []);
     } catch (e: any) {
       console.error('[Admin Orders] Error:', e.message);
       Alert.alert('Error', 'Failed to fetch admin orders');
@@ -42,9 +43,10 @@ export default function AdminOrdersScreen() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await axios.put(`${API_BASE_URL}/admin/orders/${orderId}/status`, { status: newStatus }, {
+      await axios.put(`${API_BASE_URL}/mobile/admin/orders/${orderId}`, { status: newStatus }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      Alert.alert('Success', `Order updated to ${newStatus}`);
       fetchOrders();
     } catch (e: any) {
       console.error('[Update Status] Error:', e.response?.data || e.message);
@@ -55,11 +57,9 @@ export default function AdminOrdersScreen() {
   const showStatusMenu = (order: any) => {
     Alert.alert('Update Status', `Current status: ${order.status}`, [
       { text: 'Pending', onPress: () => updateStatus(order.orderId, 'pending') },
-      { text: 'Paid', onPress: () => updateStatus(order.orderId, 'paid') },
       { text: 'Processing', onPress: () => updateStatus(order.orderId, 'processing') },
       { text: 'Shipped', onPress: () => updateStatus(order.orderId, 'shipped') },
       { text: 'Delivered', onPress: () => updateStatus(order.orderId, 'delivered') },
-      { text: 'Refunded', onPress: () => updateStatus(order.orderId, 'refunded') },
       { text: 'Cancelled', onPress: () => updateStatus(order.orderId, 'cancelled'), style: 'destructive' },
       { text: 'Close', style: 'cancel' }
     ]);
