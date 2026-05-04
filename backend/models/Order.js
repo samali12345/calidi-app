@@ -52,7 +52,7 @@ const orderSchema = new mongoose.Schema(
     loyaltyProcessed: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+      enum: ["pending", "processing", "shipped", "delivered", "cancelled", "expired"],
       default: "pending",
     },
     paymentMethod: { type: String, default: "simulated" },
