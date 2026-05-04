@@ -36,7 +36,6 @@ export default function AdminCustomersScreen() {
       `Select new role for ${user.name || user.email}`,
       [
         { text: 'Customer', onPress: () => handleUpdateUser(user._id, { role: 'customer' }) },
-        { text: 'Rider', onPress: () => handleUpdateUser(user._id, { role: 'rider' }) },
         { text: 'Admin', onPress: () => handleUpdateUser(user._id, { role: 'admin' }) },
         { text: 'Cancel', style: 'cancel' }
       ]
