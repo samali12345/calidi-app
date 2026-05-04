@@ -4,6 +4,7 @@ import {
   SafeAreaView, StatusBar, ActivityIndicator, RefreshControl, Alert, Modal, TextInput, Platform, ScrollView, Image, Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -83,9 +84,13 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleDownloadInvoice = (orderId: string) => {
+  const handleDownloadInvoice = async (orderId: string) => {
     const invoiceUrl = `${API_BASE_URL}/mobile/orders/${orderId}/invoice?token=${token}`;
-    Linking.openURL(invoiceUrl);
+    await WebBrowser.openBrowserAsync(invoiceUrl, {
+      toolbarColor: '#FAF9F6',
+      enableBarCollapsing: true,
+      showTitle: true,
+    });
   };
 
   const onRefresh = () => {

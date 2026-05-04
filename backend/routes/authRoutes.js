@@ -8,6 +8,7 @@ const authController = require("../controllers/authController");
 // Basic JWT Auth
 router.post("/signup", authController.signup);
 router.post("/login", authController.login);
+router.post("/update-password", protect, authController.updatePassword);
 
 
 function normalizeName(value = "") {

@@ -55,6 +55,10 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({ error: "Your account has been deactivated. Please contact support." });
+    }
+
     const token = generateToken(user._id);
 
     const isApprovedRider =
@@ -79,4 +83,39 @@ exports.login = async (req, res) => {
 // GET /api/auth/me  (protected)
 exports.getMe = async (req, res) => {
   res.json({ user: { id: req.user._id, email: req.user.email } });
+};
+
+// POST /api/auth/update-password (protected)
+exports.updatePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Current and new passwords are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Update password error:", error.message);
+    res.status(500).json({ error: "Failed to update password" });
+  }
 };

@@ -16,29 +16,47 @@ export default function AdminCustomersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    if (isAdmin && token) fetchCustomers();
-  }, [isAdmin, token]);
-
-  const fetchCustomers = async () => {
+  const handleUpdateUser = async (userId: string, updates: any) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mobile/admin/users`, {
+      const response = await axios.put(`${API_BASE_URL}/mobile/admin/users/${userId}`, updates, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setCustomers(response.data);
+      if (response.data.success) {
+        Alert.alert('Updated', 'User profile updated successfully.');
+        fetchCustomers();
+      }
     } catch (e: any) {
-      console.error('[Admin Customers] Error:', e.message);
-      // Fallback if the endpoint doesn't exist or fails
-      setCustomers([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      Alert.alert('Error', e.response?.data?.error || 'Failed to update user');
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchCustomers();
+  const showRolePicker = (user: any) => {
+    Alert.alert(
+      'Change User Role',
+      `Select new role for ${user.name || user.email}`,
+      [
+        { text: 'Customer', onPress: () => handleUpdateUser(user._id, { role: 'customer' }) },
+        { text: 'Rider', onPress: () => handleUpdateUser(user._id, { role: 'rider' }) },
+        { text: 'Admin', onPress: () => handleUpdateUser(user._id, { role: 'admin' }) },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const toggleStatus = (user: any) => {
+    const newStatus = !user.isActive;
+    Alert.alert(
+      newStatus ? 'Activate User' : 'Deactivate User',
+      `Are you sure you want to ${newStatus ? 'activate' : 'deactivate'} this account?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Confirm', 
+          style: newStatus ? 'default' : 'destructive',
+          onPress: () => handleUpdateUser(user._id, { isActive: newStatus }) 
+        }
+      ]
+    );
   };
 
   if (loading) {
@@ -56,7 +74,7 @@ export default function AdminCustomersScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color="#000" strokeWidth={1.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>VIEW CUSTOMERS</Text>
+        <Text style={styles.headerTitle}>USER MANAGEMENT</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -68,17 +86,24 @@ export default function AdminCustomersScreen() {
         ListEmptyComponent={
           <View style={styles.center}>
             <Users size={48} color="#DDD" strokeWidth={1} />
-            <Text style={styles.emptyTitle}>No Customers Found</Text>
+            <Text style={styles.emptyTitle}>No Users Found</Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <View style={[styles.card, item.isActive === false && styles.cardInactive]}>
             <View style={styles.cardTop}>
-              <View style={styles.avatar}>
+              <View style={[styles.avatar, item.role === 'admin' && { backgroundColor: '#E91E63' }]}>
                 <Text style={styles.avatarLetter}>{(item.name || item.email || 'U').substring(0, 1).toUpperCase()}</Text>
               </View>
               <View style={styles.info}>
-                <Text style={styles.name}>{item.name || 'Unknown'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.name}>{item.name || 'Unknown'}</Text>
+                  {item.isActive === false && (
+                    <View style={styles.deactivatedBadge}>
+                      <Text style={styles.deactivatedText}>DEACTIVATED</Text>
+                    </View>
+                  )}
+                </View>
                 <View style={styles.row}>
                   <Mail size={12} color="#888" />
                   <Text style={styles.detail}>{item.email}</Text>
@@ -93,6 +118,20 @@ export default function AdminCustomersScreen() {
               <View style={styles.roleBadge}>
                 <Text style={styles.roleText}>{item.role.toUpperCase()}</Text>
               </View>
+            </View>
+
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => showRolePicker(item)}>
+                <Text style={styles.actionBtnText}>CHANGE ROLE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionBtn, item.isActive ? styles.btnDanger : styles.btnSuccess]} 
+                onPress={() => toggleStatus(item)}
+              >
+                <Text style={[styles.actionBtnText, { color: '#FFF' }]}>
+                  {item.isActive ? 'DEACTIVATE' : 'ACTIVATE'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -137,4 +176,26 @@ const styles = StyleSheet.create({
   detail: { fontSize: 12, color: '#666', fontFamily: 'CormorantGaramond_500Medium' },
   roleBadge: { backgroundColor: '#F5F5F5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   roleText: { fontSize: 9, color: '#333', fontFamily: 'CormorantGaramond_700Bold', letterSpacing: 1 },
+  cardInactive: { opacity: 0.8, backgroundColor: '#FAFAFA', borderStyle: 'dashed' },
+  deactivatedBadge: { backgroundColor: '#FFEBEE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2 },
+  deactivatedText: { fontSize: 8, color: '#D32F2F', fontFamily: 'CormorantGaramond_700Bold' },
+  cardActions: { 
+    flexDirection: 'row', 
+    marginTop: 16, 
+    paddingTop: 12, 
+    borderTopWidth: 1, 
+    borderTopColor: '#F5F5F5',
+    gap: 10
+  },
+  actionBtn: { 
+    flex: 1, 
+    height: 34, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: '#000' 
+  },
+  actionBtnText: { fontSize: 10, color: '#000', fontFamily: 'CormorantGaramond_700Bold', letterSpacing: 1 },
+  btnDanger: { backgroundColor: '#D32F2F', borderColor: '#D32F2F' },
+  btnSuccess: { backgroundColor: '#388E3C', borderColor: '#388E3C' },
 });

@@ -15,23 +15,98 @@ export default function CheckoutScreen() {
   const { user, token } = useAuth();
   const router = useRouter();
   
-  const [address, setAddress] = useState('123 Main St');
-  const [city, setCity] = useState('Colombo');
-  const [zip, setZip] = useState('00100');
-  const [submitting, setSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [zip, setZip] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   
-  // Card Demo State
+  const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCVV, setCardCVV] = useState('');
-  const [cardName, setCardName] = useState('');
+  
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  const validateCard = () => {
+    if (paymentMethod === 'cod') return true;
+    const newErrors: Record<string, string> = {};
+
+    const cleanCard = cardNumber.replace(/\s/g, '');
+    if (cleanCard.length !== 16) {
+      newErrors.cardNumber = 'Card number must be 16 digits';
+    }
+
+    const cleanExpiry = cardExpiry.replace(/\//g, '');
+    if (cleanExpiry.length !== 4) {
+      newErrors.expiry = 'Use MM/YY format';
+    } else {
+      const month = parseInt(cleanExpiry.substring(0, 2));
+      const year = parseInt(cleanExpiry.substring(2, 4)) + 2000;
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      if (month < 1 || month > 12) {
+        newErrors.expiry = 'Invalid month (01-12)';
+      } else if (year < currentYear || (year === currentYear && month < currentMonth)) {
+        newErrors.expiry = 'Card has expired';
+      }
+    }
+
+    if (cardCVV.length !== 3) {
+      newErrors.cvv = 'CVV must be 3 digits';
+    }
+
+    if (!cardName.trim()) {
+      newErrors.cardName = 'Required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const isCardValid = () => {
+    if (paymentMethod === 'cod') return true;
+    const cleanCard = cardNumber.replace(/\s/g, '');
+    const cleanExpiry = cardExpiry.replace(/\//g, '');
+    return cleanCard.length === 16 && cleanExpiry.length === 4 && cardCVV.length === 3 && cardName.length > 2;
+  };
+
+  const getCardType = () => {
+    if (cardNumber.startsWith('4')) return 'VISA';
+    if (cardNumber.startsWith('5')) return 'MASTERCARD';
+    return '';
+  };
+
+  const handleCardNumberChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    let formatted = '';
+    for (let i = 0; i < cleaned.length; i++) {
+      if (i > 0 && i % 4 === 0) formatted += ' ';
+      formatted += cleaned[i];
+    }
+    setCardNumber(formatted.substring(0, 19));
+  };
+
+  const handleExpiryChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    let formatted = cleaned;
+    if (cleaned.length > 2) {
+      formatted = cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
+    }
+    setCardExpiry(formatted.substring(0, 5));
+  };
 
   const handlePlaceOrder = async () => {
     if (!address || !city || !zip) {
       Alert.alert('Required', 'Please fill in all delivery details.');
+      return;
+    }
+
+    if (paymentMethod === 'card' && !validateCard()) {
       return;
     }
     
@@ -40,11 +115,6 @@ export default function CheckoutScreen() {
 
       // Simulate Card Payment Demo
       if (paymentMethod === 'card') {
-        if (!cardNumber || !cardExpiry || !cardCVV) {
-          Alert.alert('Payment Error', 'Please enter your card details for the demo.');
-          setSubmitting(false);
-          return;
-        }
         setIsPaying(true);
         // Simulate processing delay
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -154,39 +224,64 @@ export default function CheckoutScreen() {
           <View style={styles.cardForm}>
             <Text style={styles.inputLabel}>CARDHOLDER NAME</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.cardName && styles.inputError]}
               value={cardName}
-              onChangeText={setCardName}
+              onChangeText={(t) => {
+                setCardName(t);
+                if (errors.cardName) setErrors({...errors, cardName: ''});
+              }}
               placeholder="E.g. Ravindu Hettiarachchi"
             />
-            <Text style={styles.inputLabel}>CARD NUMBER</Text>
+            {errors.cardName && <Text style={styles.errorText}>{errors.cardName}</Text>}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.inputLabel}>CARD NUMBER</Text>
+              {getCardType() ? <Text style={styles.cardTypeLabel}>{getCardType()}</Text> : null}
+            </View>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.cardNumber && styles.inputError]}
               value={cardNumber}
-              onChangeText={setCardNumber}
+              onChangeText={(t) => {
+                handleCardNumberChange(t);
+                if (errors.cardNumber) setErrors({...errors, cardNumber: ''});
+              }}
               placeholder="XXXX XXXX XXXX XXXX"
               keyboardType="number-pad"
+              maxLength={19}
             />
+            {errors.cardNumber && <Text style={styles.errorText}>{errors.cardNumber}</Text>}
+
             <View style={{ flexDirection: 'row', gap: 15 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>EXPIRY</Text>
+                <Text style={styles.inputLabel}>EXPIRY (MM/YY)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, errors.expiry && styles.inputError]}
                   value={cardExpiry}
-                  onChangeText={setCardExpiry}
+                  onChangeText={(t) => {
+                    handleExpiryChange(t);
+                    if (errors.expiry) setErrors({...errors, expiry: ''});
+                  }}
                   placeholder="MM/YY"
+                  keyboardType="number-pad"
+                  maxLength={5}
                 />
+                {errors.expiry && <Text style={styles.errorText}>{errors.expiry}</Text>}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.inputLabel}>CVV</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, errors.cvv && styles.inputError]}
                   value={cardCVV}
-                  onChangeText={setCardCVV}
+                  onChangeText={(t) => {
+                    setCardCVV(t.replace(/[^0-9]/g, '').substring(0, 3));
+                    if (errors.cvv) setErrors({...errors, cvv: ''});
+                  }}
                   placeholder="123"
                   keyboardType="number-pad"
                   secureTextEntry
+                  maxLength={3}
                 />
+                {errors.cvv && <Text style={styles.errorText}>{errors.cvv}</Text>}
               </View>
             </View>
           </View>
@@ -223,9 +318,13 @@ export default function CheckoutScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.checkoutBtn, isPaying && { backgroundColor: '#10B981' }]}
+          style={[
+            styles.checkoutBtn, 
+            isPaying && { backgroundColor: '#10B981' },
+            (!isCardValid() || submitting) && { opacity: 0.5 }
+          ]}
           onPress={handlePlaceOrder}
-          disabled={submitting}
+          disabled={submitting || !isCardValid()}
         >
           {isPaying ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -425,4 +524,21 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontFamily: 'CormorantGaramond_700Bold',
   },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 10,
+    marginTop: -12,
+    marginBottom: 12,
+    fontFamily: 'CormorantGaramond_500Medium',
+  },
+  cardTypeLabel: {
+    fontSize: 10,
+    color: '#888',
+    letterSpacing: 1,
+    fontFamily: 'CormorantGaramond_700Bold',
+    marginBottom: 6,
+  }
 });

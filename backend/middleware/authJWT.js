@@ -4,12 +4,18 @@ const User = require('../models/User');
 // JWT-based protection for mobile app (does not use Firebase)
 const protectJWT = async (req, res, next) => {
   try {
+    let token;
     const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Not authorized - no token' });
+    
+    if (header && header.startsWith('Bearer ')) {
+      token = header.split(' ')[1];
+    } else if (req.query.token) {
+      token = req.query.token;
     }
 
-    const token = header.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Not authorized - no token' });
+    }
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);

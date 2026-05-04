@@ -15,12 +15,24 @@ router.get('/me', protectJWT, (req, res) => {
 router.put('/me', protectJWT, async (req, res) => {
   try {
     const { name, mobileNumber } = req.body;
-    const updates = {};
-    if (name) updates.name = name.trim();
-    if (mobileNumber) updates.mobileNumber = mobileNumber.trim();
-
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: { name, mobileNumber } },
+      { new: true }
+    );
     res.json({ success: true, user: { id: user._id, email: user.email, name: user.name, mobileNumber: user.mobileNumber, role: user.role } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── DELETE /api/mobile/me ── delete account ───────────────────────────────
+router.delete('/me', protectJWT, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.user._id);
+    // Also delete their orders (optional, but cleaner)
+    await Order.deleteMany({ userId: req.user._id });
+    res.json({ success: true, message: 'Account deleted successfully' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -174,6 +186,31 @@ router.get('/admin/users', protectJWT, async (req, res) => {
   }
 });
 
+// ─── PUT /api/mobile/admin/users/:id ── update role/status ───────────────────
+router.put('/admin/users/:id', protectJWT, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+    const { role, isActive } = req.body;
+    
+    const user = await User.findById(req.user._id); // verify admin
+    const targetUser = await User.findById(req.params.id);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    // Prevent deactivating yourself
+    if (req.user._id.toString() === req.params.id && isActive === false) {
+      return res.status(400).json({ error: 'You cannot deactivate your own admin account' });
+    }
+
+    if (role) targetUser.role = role;
+    if (typeof isActive === 'boolean') targetUser.isActive = isActive;
+    
+    await targetUser.save();
+    res.json({ success: true, user: targetUser });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── GET /api/mobile/admin/orders ────────────────────────────────────────────
 router.get('/admin/orders', protectJWT, async (req, res) => {
   try {
@@ -190,8 +227,18 @@ router.put('/admin/orders/:id', protectJWT, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
     const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    
+    // Support finding by readable orderId or MongoDB _id
+    let order = await Order.findOne({ orderId: req.params.id });
+    if (!order && mongoose.Types.ObjectId.isValid(req.params.id)) {
+      order = await Order.findById(req.params.id);
+    }
+
     if (!order) return res.status(404).json({ error: 'Order not found' });
+    
+    order.status = status;
+    await order.save();
+    
     res.json({ success: true, order });
   } catch (e) {
     res.status(500).json({ error: e.message });

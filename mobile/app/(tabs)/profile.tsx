@@ -6,7 +6,8 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import {
   Mail, Lock, User as UserIcon, LogOut,
-  ChevronRight, Package, Heart, Settings
+  ChevronRight, Package, Heart, Settings,
+  Eye, EyeOff, Trash2
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
@@ -18,6 +19,8 @@ export default function ProfileScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -47,15 +50,40 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Are you sure you want to sign out?');
-      if (confirmed) logout();
-    } else {
-      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: logout },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This action is permanent and will delete all your data. Are you absolutely sure?',
+      [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: logout },
-      ]);
-    }
+        { 
+          text: 'Delete Permanently', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              const response = await axios.delete(`${API_BASE_URL}/mobile/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (response.data.success) {
+                Alert.alert('Deleted', 'Your account has been successfully removed.');
+                logout();
+              }
+            } catch (e: any) {
+              Alert.alert('Error', e.response?.data?.error || 'Failed to delete account');
+            } finally {
+              setDeleting(false);
+            }
+          } 
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -190,17 +218,33 @@ export default function ProfileScreen() {
             onPress={() => Alert.alert('Wishlist', 'Feature coming soon!')}
           />
           <MenuItem 
+            icon={<Lock size={20} color="#333" strokeWidth={1.5} />} 
+            label="Change Password" 
+            onPress={() => router.push('/update-password')}
+          />
+          <MenuItem 
             icon={<Settings size={20} color="#333" strokeWidth={1.5} />} 
             label="Settings" 
             onPress={() => Alert.alert('Settings', 'Feature coming soon!')}
           />
         </View>
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={18} color="#E53935" strokeWidth={1.5} />
-          <Text style={styles.logoutText}>SIGN OUT</Text>
-        </TouchableOpacity>
+        {/* Logout & Account Actions */}
+        <View style={{ marginTop: 20 }}>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <LogOut size={18} color="#E53935" strokeWidth={1.5} />
+            <Text style={styles.logoutText}>SIGN OUT</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.deleteBtn, deleting && { opacity: 0.5 }]} 
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+          >
+            <Trash2 size={16} color="#AAA" strokeWidth={1.5} />
+            <Text style={styles.deleteText}>DELETE MY ACCOUNT PERMANENTLY</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -373,14 +417,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 20,
-    marginTop: 30,
-    marginBottom: 20,
+    paddingVertical: 14,
   },
   logoutText: {
     fontSize: 13,
     color: '#E53935',
     letterSpacing: 2,
     fontFamily: 'CormorantGaramond_700Bold',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 20,
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  deleteText: {
+    fontSize: 10,
+    color: '#AAA',
+    letterSpacing: 1.5,
+    fontFamily: 'CormorantGaramond_500Medium',
+    textDecorationLine: 'underline',
   },
 });
